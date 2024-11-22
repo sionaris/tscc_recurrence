@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+NF-processed_samples/
+nextflow/move_files.txt
+nextflow/nf_job.sh.txt

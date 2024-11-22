@@ -1,0 +1,2 @@
+# Move the files from my PC to the $SCRATCH space in Aristotelis
+rsync -av --progress ~/Projects/OSCC/Oral_cancer-31099087/FASTQ_Generation_2024-06-04_12_20_47Z-49522528/ asionak@aristotle.it.auth.gr:/scratch/a/asionak/OSCC_2024/
