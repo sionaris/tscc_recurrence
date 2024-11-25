@@ -8,9 +8,7 @@ library(tximport)
 library(tximeta)
 library(readr)
 library(stringr)
-# library(edgeR)
-library(org.Mm.eg.db)
-library(AnnotationHub)
+library(edgeR)
 library(ggplot2)
 library(tidyr)
 library(ggpubr)
@@ -28,6 +26,7 @@ library(PoiClaClu)
 library(EnhancedVolcano)
 library(genefilter)
 library(grid)
+library(openxlsx)
 
 # Preprocessing #####
 
@@ -37,6 +36,8 @@ library(grid)
 # ranges from 0 to 79. From each subdirectory we fetch the salmon.merged.gene_counts file
 
 # Import the files into R
+# Load pheno data
+Pheno = read.xlsx("Resources_and_environments/Pheno.xlsx")
 
 # Extract sample names in order
 batch_dirs <- paste0("NF-processed_samples/batch_", seq(0, 79, 1))
@@ -107,7 +108,7 @@ gpca.dat = gpca$factors
 gpca.dat$Sample.ID = rownames(gpca.dat)
 
 gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = Sample.ID)) +
-  geom_point(size = 0.5, alpha = 0.65) +
+  geom_point(size = 0.2, alpha = 0.65) +
   ggtitle("Generalized Principal Component Analysis (glmpca, counts)") +
   theme_classic() +
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
@@ -133,7 +134,7 @@ dimnames(samplePoisDistMatrix_pre) = list(colnames(counts(dds_pre)), colnames(co
 mdsPois <- as.data.frame(colData(dds)) %>%
   cbind(cmdscale(samplePoisDistMatrix_pre))
 poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = names)) +
-  geom_point(size = 0.5, alpha = 0.65) +
+  geom_point(size = 0.2, alpha = 0.65) +
   ggtitle("Multidimensional scaling: Poisson distance (counts)") +
   theme_classic() +
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
@@ -195,112 +196,27 @@ coldata <- as.data.frame(colData(dds_pre))
 coldata <- coldata[match(unique_sample_ids, sub("_[ab]$", "", rownames(coldata))), , drop = FALSE]
 rownames(coldata) <- unique_sample_ids
 
-# Create a new DESeqDataSet object from the summed counts matrix
-dds <- DESeqDataSetFromMatrix(countData = summed_counts,
-                              colData = coldata,
-                              design = design(dds_pre))
-
-rm(unique_sample_ids, summed_counts); gc()
-
-# DESeq2 objects preparation #####
-
-# How many genes in this dataset are all zeros?
-table(rowSums(x$counts==0)==14) # 14: number of samples
-
-# FALSE  TRUE 
-# 16520  8463
-
-print(paste0(round(100*8463/(16520+8463), 2), "% of genes only have zero counts."))
-# 33.88% of genes only have zero counts.
-
 # Create a full design matrix for the filtering
-design = model.matrix(~ x$samples$batch + x$samples$treatment + x$samples$timepoint +
-                        x$samples$treatment:x$samples$timepoint)
+design = model.matrix(~ Pheno$Sample.type + Pheno$Stage + Pheno$Recurrence + 
+                        Pheno$Sample.type:Pheno$Recurrence +
+                        Pheno$Stage:Pheno$Recurrence)
 
 # We need to filter out uninformative genes
-keep.exprs = names(which(filterByExpr(x, design = design) == TRUE))
-x_filt = x
-x_filt$counts = x_filt$counts[keep.exprs,]
-x_filt$genes = x_filt$genes[x_filt$genes$Gene.Symbol %in% keep.exprs,]
-dim(x_filt)
+keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
 
+# This design results in ~20,000 genes less (57925 -> 38992)
+summed_counts = summed_counts[keep.exprs, ]
 
-# However, we decided it is best to proceed with filtering only the rows with
-# a total count of zero
-x_filt = x[-which(rowSums(x$counts==0)==14), ]
+# Create a new DESeqDataSet object from the summed counts matrix
+dds <- DESeqDataSetFromMatrix(countData = summed_counts,
+                              colData = Pheno,
+                              design = design)
 
-# Create a TPM matrix
-library(AnnotationHub)
+rm(unique_sample_ids, summed_counts, dds_pre); gc()
 
-# Create an AnnotationHub object
-ah = AnnotationHub()
+dds = estimateSizeFactors(dds)
 
-# Query for the latest Mus musculus EnsDb object
-latest_mus_musculus = query(ah, c("EnsDb", "Mus musculus")) 
-
-# Print the latest version
-tail(latest_mus_musculus)
-
-# ID of interest is "AH109655" - Date: 28/01/2024
-edb = ah[["AH109655"]]
-
-# Get gene data
-genes_data = genes(edb)
-genes_map = data.frame(gene_id = genes_data$gene_id,
-                       Gene.Symbol = genes_data$gene_name)
-
-# Get transcript data
-transcripts_data = transcripts(edb)
-transcript_lengths = data.frame(transcript_id = transcripts_data$tx_id,
-                                gene_id = transcripts_data$gene_id,
-                                tx_length = width(transcripts_data)) %>%
-  inner_join(genes_map, by = "gene_id") %>%
-  dplyr::filter(!Gene.Symbol == "") %>%
-  group_by(Gene.Symbol) %>%
-  summarise(longest_transcript_length = max(tx_length, na.rm = TRUE))
-
-# Calculate gene lengths in kilobases
-transcript_lengths$transcript_length_kb = transcript_lengths$longest_transcript_length / 1000
-
-# Map gene lengths to rownames of the counts matrix
-rownames(transcript_lengths) = transcript_lengths$Gene.Symbol
-mapped = transcript_lengths[transcript_lengths$Gene.Symbol %in% 
-                              x_filt$genes$Gene.Symbol,]
-mapped_lengths = mapped$transcript_length_kb # length in kilobases
-
-
-# Calculate reads per kilobase RPK - divide the counts by transcript length in kB
-rpk = x_filt$counts[mapped$Gene.Symbol, ] / (mapped_lengths / 1000)
-# Calculate the sum of CPK values for each sample
-rpk_sum = colSums(rpk)
-
-# Calculate TPM values
-tpm = apply(rpk, 2,
-            function (x) x / (sum(as.numeric(x)) / 10^6))
-tpm_sum = colSums(tpm)
-
-log2tpm = log2(tpm + 1)
-rm(rpk, rpk_sum, tpm_sum, keep.exprs, mapped_lengths, ah, edb)
-
-removals = c(which(x_filt$genes$Gene.Symbol == "no_feature"),
-             which(x_filt$genes$Gene.Symbol == "ambiguous"))
-x_filt$genes = x_filt$genes[-removals, ]
-x_filt$counts = x_filt$counts[-removals, ]
-
-# DESeq2 object
-dds = DESeqDataSetFromMatrix(countData = x_filt$counts,
-                             colData = x_filt$samples,
-                             design = ~ batch + treatment + timepoint +
-                               treatment:timepoint)
-
-featureData = as.data.frame(x_filt$genes)
-mcols(dds) = DataFrame(mcols(dds), featureData)
-mcols(dds)
-rm(featureData)
-
-# Density curve function
-library(ggplot2)
-library(tidyr)
+# Density curve function# Density curdds_preve function
 create_density_curve <- function(matrix) {
   as.data.frame(matrix) %>%
     gather(.) %>%
@@ -326,64 +242,110 @@ create_density_plot_color <- function(matrix) {
     theme(legend.position = "none")
 }
 
-# Create folder for distribution plots
-if (!dir.exists("MEL_exploratory_plots")) {
-  dir.create("MEL_exploratory_plots")
-}
-
-if (!dir.exists("MEL_exploratory_plots/MEL_distribution_plots")) {
-  dir.create("MEL_exploratory_plots/MEL_distribution_plots")
-}
-
 # Density plots/curves for our data
-create_density_curve(x_filt$counts)
-ggsave(filename = "MEL_filtered_read_counts_density_curves.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+create_density_curve(counts(dds)) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_read_counts_density_curves.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
 
 # The previous plot contains count outliers (abnormally high counts) which make 
 # it difficult to see the distribution of counts near zero. We replot with 
-# xlim 200
+# xlim 30
 
-create_density_curve(x_filt$counts)+
-  scale_x_continuous(limits = c(-1, 200), breaks = seq(0, 200, 10))
-ggsave(filename = "MEL_filtered_read_counts_density_curves_xlim200.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+create_density_curve(counts(dds)) +
+  scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_read_counts_density_curves_xlim30.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
 
 # Color density plots for counts
-create_density_plot_color(x_filt$counts)
-ggsave(filename = "MEL_filtered_read_counts_color_densities.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+create_density_plot_color(counts(dds)) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_read_counts_color_densities.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
 
-# With xlim 200
-create_density_plot_color(x_filt$counts)+
-  scale_x_continuous(limits = c(-1, 200), breaks = seq(0, 200, 10))
-ggsave(filename = "MEL_filtered_read_counts_color_densities_xlim200.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+# With xlim 30
+create_density_plot_color(counts(dds))+
+  scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_read_counts_color_densities_xlim30.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
 
-# Now with TPM
-create_density_curve(log2tpm)
-ggsave(filename = "MEL_filtered_log2tpm_density_curves.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+# Now with normalized counts
+
+# Firstly, transform the normalized counts with a data-driven pseudocount
+# https://www.biorxiv.org/content/10.1101/404962v1.full -> Process description
+
+# We need a grouping for the OSCC samples. We are going to go for 
+# Recurrence vs No recurrence
+rec_samples = Pheno$Patient.ID[Pheno$Recurrence == "Recurrence"]
+norec_samples = Pheno$Patient.ID[Pheno$Recurrence == "No recurrence"]
+
+# Get size factors similarly to TCGA
+# Mock sample conditions
+sample_conditions <- data.frame(
+  row.names = colnames(counts(dds)),
+  condition = factor(rep("condition", ncol(counts(dds))))
+)
+
+# Create DESeqDataSet object
+dds_null <- DESeqDataSetFromMatrix(countData = counts(dds), 
+                              colData = sample_conditions, 
+                              design = ~ 1) 
+
+# Estimate size factors
+dds_null <- estimateSizeFactors(dds_null)
+
+# Save size factors for later if needed
+size_factors = dds_null$sizeFactor
+names(size_factors) = dds_null@colData@rownames
+
+# Get the normalized counts
+normalized_counts <- counts(dds_null, normalized = TRUE)
+
+# Assign proper row and column names to the normalized counts
+rownames(normalized_counts) = rownames(counts(dds))
+colnames(normalized_counts) = colnames(counts(dds))
+
+# Estimate averages
+avg_rec_size_factor = mean(size_factors[rec_samples], na.rm = TRUE)
+avg_norec_size_factor = mean(size_factors[norec_samples], na.rm = TRUE)
+sf = c(avg_rec_size_factor, avg_norec_size_factor)
+
+# Lun et al. suggest pseudocount = max{1, r|1/smin - 1/smax|}, where r = 1 (suggestion)
+pseudocount_RNA = max(c(1, abs(1/min(sf) - 1/max(sf)))) # 1
+
+# We proceed with the log2(norm.counts + 1) transformation
+log2.norm.counts.plus1 = log2(normalized_counts + pseudocount_RNA)
+
+rm(rec_samples, norec_samples, sample_conditions, normalized_counts, dds_null, 
+   size_factors, avg_norec_size_factor, avg_rec_size_factor, sf, pseudocount_RNA); gc()
+
+create_density_curve(log2.norm.counts.plus1) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_log2normcounts_density_curves.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
 
 # Color density plots for counts
-create_density_plot_color(log2tpm)
-ggsave(filename = "MEL_filtered_log2tpm_color_densities.tiff",
-       path = "MEL_exploratory_plots/MEL_distribution_plots",
+create_density_plot_color(log2.norm.counts.plus1) +
+  theme(plot.title = element_text(face = "bold"))
+ggsave(filename = "OSCC_filtered_log2normcounts_color_densities.tiff",
+       path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'tiff', units = "px",
        dpi = 150, compression = "lzw")
 dev.off()
@@ -396,36 +358,24 @@ rld = rlog(dds, blind = FALSE)
 # See https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#data-transformations-and-visualization
 # for why blind = FALSE
 
-dds = estimateSizeFactors(dds)
-
-# Create folder for mean-variance plots and exploratory heatmaps
-if (!dir.exists("MEL_exploratory_plots/Transformations_and_heatmaps")) {
-  dir.create("MEL_exploratory_plots/Transformations_and_heatmaps")
-}
-
 # Produce a scatter plot of transformed counts for the first two samples
 df = bind_rows(
-  as.data.frame(log2(counts(dds, normalized=TRUE)[, 1:2]+1)) %>%
-    mutate(transformation = "log2(x + 1)"),
+  as.data.frame(log2.norm.counts.plus1[, 1:2]) %>%
+    mutate(transformation = "log2(norm.counts + 1)"),
   as.data.frame(assay(vsd)[, 1:2]) %>% mutate(transformation = "vst"),
   as.data.frame(assay(rld)[, 1:2]) %>% mutate(transformation = "rlog"))
 
 colnames(df)[1:2] <- c("x", "y")  
 
-lvls = c("log2(x + 1)", "vst", "rlog")
+lvls = c("log2(norm.counts + 1)", "vst", "rlog")
 df$transformation = factor(df$transformation, levels=lvls)
 
 ggplot(df, aes(x = x, y = y)) + geom_hex(bins = 80) +
   coord_fixed() + facet_grid( . ~ transformation)
 
 # Produce mean - sd plots 
-library(vsn)
-library(ggpubr)
-library(cowplot)
-
-ntd = normTransform(dds) # log2(counts + 1) transformation
-plot1 = meanSdPlot(assay(ntd))$gg + rremove("ylab") + rremove("xlab") + 
-  ggtitle(bquote(bold("log2(counts + 1)"))) +
+plot1 = meanSdPlot(log2.norm.counts.plus1)$gg + rremove("ylab") + rremove("xlab") + 
+  ggtitle(bquote(bold("log2(norm.counts + 1)"))) +
   theme(plot.title = element_text(hjust = 0.5, vjust = 0.5))
 plot2 = meanSdPlot(assay(rld))$gg + rremove("ylab") + rremove("xlab") + 
   ggtitle(bquote(bold("rlog"))) +
@@ -436,46 +386,42 @@ plot3 = meanSdPlot(assay(vsd))$gg + rremove("ylab") + rremove("xlab") +
 dev.off()
 
 # Use ggarrange to align the three plots horizontally and set the x-axis and y-axis labels
-require(grid)
 fig = ggarrange(plot1, plot2, plot3, 
                 ncol = 3, nrow = 1, 
                 common.legend = TRUE, legend = "bottom",
                 labels = c("A", "B", "C"),
                 align = "hv",
                 font.label = list(size = 10, color = "black", face = "bold", family = NULL, position = "top"))
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/meanSdPlot.tiff", res = 300, width = 4500, height = 1600, compression = "lzw")
+tiff("Results/Exploratory analysis/meanSdPlot.tiff", res = 300, width = 4500, height = 1600, compression = "lzw")
 fig
 annotate_figure(fig, left = textGrob(bquote(bold("sd")), rot = 90, vjust = 1, gp = gpar(cex = 1)),
                 bottom = textGrob(bquote(bold("rank (mean)")), gp = gpar(cex = 1)))
 dev.off()
 
 # Heatmap of the count matrix - top 50 genes
-library(pheatmap)
-library(rcartocolor)
-select = order(rowMeans(counts(dds,normalized=TRUE)),
+select = order(rowMeans(log2.norm.counts.plus1),
                decreasing=TRUE)[1:50]
-df = as.data.frame(colData(dds)[,c("batch", "treatment", "timepoint")])
+df = as.data.frame(colData(dds)[,c("Sample.type", "Stage", "Recurrence")])
 
 # Annotation colors
 ann_colors = list(
-  batch = c(`2023_exp` = "dodgerblue4", auth = "deeppink4"),
-  treatment = c(HMBA = "purple4", control = "orange"),
-  timepoint = c(`24h` = carto_pal(n = 7, "Emrld")[1], 
-                `48h` = carto_pal(n = 7, "Emrld")[4], 
-                `72h` = carto_pal(n = 7, "Emrld")[7])
+  Recurrence = c(`No recurrence` = "dodgerblue4", Recurrence = "deeppink4"),
+  Sample.type = c(Tumor = "purple4", Normal = "orange"),
+  Stage = c(Early = carto_pal(n = 7, "Emrld")[4], 
+                Late = carto_pal(n = 7, "Burg")[4])
 )
 
-# log2(counts + 1)
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/top50_heatmap_log2(counts+1).tiff",
+# log2(norm.counts + 1)
+tiff("Results/Exploratory analysis/top50_heatmap_log2(norm.counts+1).tiff",
      res = 200, width = 1420, 
      height = 1080, compression = "lzw")
-pheatmap(assay(ntd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+pheatmap(log2.norm.counts.plus1[select,], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "log2(counts + 1)",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
 
 # rlog
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/top50_heatmap_rlog.tiff",
+tiff("Results/Exploratory analysis/top50_heatmap_rlog.tiff",
      res = 200, width = 1420, 
      height = 1080, compression = "lzw")
 pheatmap(assay(rld)[select,], cluster_rows=FALSE, show_rownames=FALSE,
@@ -484,7 +430,7 @@ pheatmap(assay(rld)[select,], cluster_rows=FALSE, show_rownames=FALSE,
 dev.off()
 
 # vst
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/top50_heatmap_vst.tiff", res = 200, width = 1420, 
+tiff("Results/Exploratory analysis/top50_heatmap_vst.tiff", res = 200, width = 1420, 
      height = 1080, compression = "lzw")
 pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "vst",
@@ -494,15 +440,12 @@ dev.off()
 # We will only use the vst-transformed data for the next visualisations
 
 # Heatmap of sample distances
-library(RColorBrewer)
-library(tibble)
-
 sampleVSTdists = dist(t(assay(vsd)))
 sampleDistMatrix = as.matrix(sampleVSTdists)
 #colnames(sampleDistMatrix) = NULL
 colors = colorRampPalette(viridisLite::magma(10))(255)
 
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/sample_distance_heatmap_vst.tiff", 
+tiff("Results/Exploratory analysis/sample_distance_heatmap_vst.tiff", 
      res = 700, width = 6760, 
      height = 4760, compression = "lzw")
 pheatmap(sampleDistMatrix,
@@ -516,13 +459,12 @@ pheatmap(sampleDistMatrix,
 dev.off()
 
 # Heatmap of sample Poisson distances (more appropriate for count data)
-library(PoiClaClu)
 poisd = PoissonDistance(t(counts(dds)))
 samplePoisDistMatrix = as.matrix(poisd$dd)
 dimnames(samplePoisDistMatrix) = dimnames(sampleDistMatrix)
 #colnames(samplePoisDistMatrix) = NULL
 
-tiff("MEL_exploratory_plots/Transformations_and_heatmaps/sample_poisson_distance_heatmap.tiff", res = 700, width = 6760, 
+tiff("Results/Exploratory analysis/sample_poisson_distance_heatmap.tiff", res = 700, width = 6760, 
      height = 4760, compression = "lzw")
 pheatmap(samplePoisDistMatrix,
          clustering_distance_rows = poisd$dd,
@@ -535,34 +477,28 @@ pheatmap(samplePoisDistMatrix,
 dev.off()
 
 # Dimensionality reduction #####
-# Create dimensionality reduction plots folder 
-if (!dir.exists("MEL_exploratory_plots/Dimensionality_reduction_plots")) {
-  dir.create("MEL_exploratory_plots/Dimensionality_reduction_plots")
-}
-
 # Principal Component Analysis
-library(ggrepel)
-pcaData = plotPCA(vsd, intgroup = c("treatment", "batch"), 
+pcaData = plotPCA(vsd, intgroup = c("Recurrence", "Sample.type"), 
                   returnData=TRUE) %>%
-  dplyr::rename(Sample.ID = name)
-time = as.data.frame(vsd@colData@listData) %>%
+  dplyr::rename(Patient.ID = name)
+stage = as.data.frame(vsd@colData@listData) %>%
   rownames_to_column %>%
-  dplyr::select(Sample.ID = rowname, timepoint)
+  dplyr::select(Patient.ID = rowname, Stage)
 pcaData = pcaData %>%
-  inner_join(time, by = "Sample.ID")
+  inner_join(stage, by = "Patient.ID")
 percentVar = round(100 * attr(pcaData, "percentVar"))
-pcaplot = ggplot(pcaData, aes(PC1, PC2, color = treatment, shape = batch)) +
-  geom_point(size = 0.5, alpha = 0.65) +
-  geom_text_repel(aes(label = timepoint), segment.linetype = 1,
+pcaplot = ggplot(pcaData, aes(PC1, PC2, color = Sample.type, shape = Recurrence)) +
+  geom_point(size = 0.2, alpha = 0.65) +
+  geom_text_repel(aes(label = Stage), segment.linetype = 1,
                   segment.color = "black", segment.size = 0.1,
                   min.segment.length = 0,
-                  size = 1, nudge_y = 0.03, nudge_x = 0.03, show.legend = FALSE) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03, show.legend = FALSE) +
   xlab(paste0("PC1: ",percentVar[1],"% variance")) +
   ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
   ggtitle("Principal Component Analysis: VST") +
   theme_classic() +
-  scale_color_manual(name = "treatment", values = c("orange", "purple4"),
-                     labels = c("control", "HMBA"))+
+  scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
+                     labels = c("Normal", "Tumor"))+
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
         axis.text = element_text(size = 3, hjust = 0.5, vjust = 0.5, 
                                  color = "black"),
@@ -579,25 +515,24 @@ pcaplot = ggplot(pcaData, aes(PC1, PC2, color = treatment, shape = batch)) +
         legend.background = element_blank())
 
 # Generalized PCA (more appropriate for count data)
-library(glmpca)
 RNGversion("4.2.2")
 set.seed(123)
 gpca = glmpca(counts(dds), L=2)
 gpca.dat = gpca$factors
-gpca.dat$treatment = dds$treatment
-gpca.dat$batch = dds$batch
-gpca.dat$timepoint = dds$timepoint
+gpca.dat$Sample.type = dds$Sample.type
+gpca.dat$Stage = dds$Stage
+gpca.dat$Recurrence = dds$Recurrence
 
-gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = treatment, shape = batch)) +
-  geom_point(size = 0.5, alpha = 0.65) +
-  geom_text_repel(aes(label = timepoint), segment.linetype = 1,
+gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = Sample.type, shape = Recurrence)) +
+  geom_point(size = 0.2, alpha = 0.65) +
+  geom_text_repel(aes(label = Stage), segment.linetype = 1,
                   segment.color = "black", segment.size = 0.1,
                   min.segment.length = 0,
-                  size = 1, nudge_y = 0.03, nudge_x = 0.03, show.legend = FALSE) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03, show.legend = FALSE) +
   ggtitle("Generalized Principal Component Analysis (glmpca, counts)") +
   theme_classic() +
-  scale_color_manual(name = "treatment", values = c("orange", "purple4"),
-                     labels = c("control", "HMBA"))+
+  scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
+                     labels = c("Normal", "Tumor"))+
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
         axis.text = element_text(size = 3, hjust = 0.5, vjust = 0.5, 
                                  color = "black"),
@@ -613,7 +548,7 @@ gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = treatment, shape = b
         legend.spacing.x = unit(0.5, units = "mm"),
         legend.background = element_blank())
 
-tiff("MEL_exploratory_plots/Dimensionality_reduction_plots/PCA.tiff", width = 2880, height = 1380, res = 700,
+tiff("Results/Exploratory analysis/PCA.tiff", width = 2880, height = 1380, res = 700,
      compression = "lzw")
 ggarrange(pcaplot, gpcaplot, 
           ncol = 2, nrow = 1, common.legend = TRUE, 
@@ -626,17 +561,16 @@ dev.off()
 # VST
 mds <- as.data.frame(colData(vsd))  %>%
   cbind(cmdscale(sampleDistMatrix))
-mdsplot = ggplot(mds, aes(x = `1`, y = `2`, color = treatment, 
-                          shape = batch)) +
-  geom_point(size = 0.5, alpha = 0.65) +
-  geom_text_repel(aes(label = timepoint, segment.linetype = 1,
+mdsplot = ggplot(mds, aes(x = `1`, y = `2`, color = Sample.type, shape = Recurrence)) +
+  geom_point(size = 0.2, alpha = 0.65) +
+  geom_text_repel(aes(label = Stage, segment.linetype = 1,
                       segment.color = "black", segment.size = 0.1),
                   min.segment.length = 0,
-                  size = 1, nudge_y = 0.03, nudge_x = 0.03) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03) +
   ggtitle("Multidimensional scaling: VST") +
   theme_classic() +
-  scale_color_manual(name = "treatment", values = c("orange", "purple4"),
-                     labels = c("control", "HMBA"))+
+  scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
+                     labels = c("Normal", "Tumor"))+
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
         axis.text = element_text(size = 3, hjust = 0.5, vjust = 0.5, 
                                  color = "black"),
@@ -657,17 +591,16 @@ mdsplot = ggplot(mds, aes(x = `1`, y = `2`, color = treatment,
 # Poisson
 mdsPois <- as.data.frame(colData(dds)) %>%
   cbind(cmdscale(samplePoisDistMatrix))
-poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = treatment, 
-                                      shape = batch)) +
-  geom_point(size = 0.5, alpha = 0.65) +
-  geom_text_repel(aes(label = timepoint, segment.linetype = 1,
+poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = Sample.type, shape = Recurrence)) +
+  geom_point(size = 0.2, alpha = 0.65) +
+  geom_text_repel(aes(label = Stage, segment.linetype = 1,
                       segment.color = "black", segment.size = 0.1),
                   min.segment.length = 0,
-                  size = 1, nudge_y = 0.03, nudge_x = 0.03) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03) +
   ggtitle("Multidimensional scaling: Poisson distance (counts)") +
   theme_classic() +
-  scale_color_manual(name = "treatment", values = c("orange", "purple4"),
-                     labels = c("control", "HMBA"))+
+  scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
+                     labels = c("Normal", "Tumor"))+
   theme(plot.title = element_text(size = 4, face = "bold", vjust = 0.5, hjust = 0.5),
         axis.text = element_text(size = 3, hjust = 0.5, vjust = 0.5, 
                                  color = "black"),
@@ -691,7 +624,7 @@ fig = ggarrange(mdsplot +rremove("ylab"), poisson_mdsplot +rremove("ylab"),
                 labels = c("A", "B"),
                 align = "hv",
                 font.label = list(size =4, color = "black", face = "bold"))
-tiff("MEL_exploratory_plots/Dimensionality_reduction_plots/MDS.tiff", res = 700, width = 2880, height = 1080, compression = "lzw")
+tiff("Results/Exploratory analysis/MDS.tiff", res = 700, width = 2880, height = 1080, compression = "lzw")
 fig
 annotate_figure(fig, left = textGrob(bquote(bold("MDS2")), rot = 90, vjust = 1, gp = gpar(cex = 0.45)))
 dev.off()
