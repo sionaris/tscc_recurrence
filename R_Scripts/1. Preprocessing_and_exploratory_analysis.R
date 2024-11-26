@@ -196,14 +196,12 @@ coldata <- coldata[match(unique_sample_ids, sub("_[ab]$", "", rownames(coldata))
 rownames(coldata) <- unique_sample_ids
 
 # Create a full design matrix for the filtering
-design = model.matrix(~ Pheno$Sample.type + Pheno$Stage + Pheno$Recurrence + 
-                        Pheno$Sample.type:Pheno$Recurrence +
-                        Pheno$Stage:Pheno$Recurrence)
+design = model.matrix(~ Pheno$Sample.type*Pheno$Stage*Pheno$Recurrence)
 
 # We need to filter out uninformative genes
 keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
 
-# This design results in ~20,000 genes less (57925 -> 38992)
+# This design results in ~50,000 genes less (57925 -> 50433)
 summed_counts = summed_counts[keep.exprs, ]
 
 # Create a new DESeqDataSet object from the summed counts matrix
