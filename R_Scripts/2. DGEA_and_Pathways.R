@@ -35,8 +35,20 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # and the RNAseq workflow by Michael Love:
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
 
-dds = DESeq(dds, test = "LRT", reduced = ~ batch + treatment + timepoint)
+dds = DESeq(dds)
 resultsNames(dds) # Names of the coefficients
+
+# Rename for easy contrast call
+contrast_tumor_vs_normal = "Pheno.Sample.typeTumor"
+contrast_late_vs_early = "Pheno.StageLate"
+contrast_recurrence_vs_norec = "Pheno.RecurrenceRecurrence"
+contrast_tumor_rec = "Pheno.Sample.typeTumor.Pheno.RecurrenceRecurrence"
+contrast_late_rec = "Pheno.StageLate.Pheno.RecurrenceRecurrence"
+
+# Create contrast list
+contrasts = list(Rec_vs_norec = list(c(contrast_recurrence_vs_norec,
+                                       contrast_tumor_rec)),
+                 )
 
 contrasts = list(HMBA24h_vs_Control48h = list("treatment_HMBA_vs_control",
                                               "timepoint_48h_vs_24h"),

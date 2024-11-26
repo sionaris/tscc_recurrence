@@ -195,8 +195,13 @@ coldata <- as.data.frame(colData(dds_pre))
 coldata <- coldata[match(unique_sample_ids, sub("_[ab]$", "", rownames(coldata))), , drop = FALSE]
 rownames(coldata) <- unique_sample_ids
 
+coldata = coldata %>% 
+  dplyr::select(-Recurrence, -names) %>%
+  inner_join(Pheno, by = "Patient.ID")
+
 # Create a full design matrix for the filtering
-design = model.matrix(~ Pheno$Sample.type*Pheno$Stage*Pheno$Recurrence)
+design = model.matrix(~ coldata$Sample.type*coldata$Stage*coldata$Recurrence)
+rownames(design) = rownames(coldata)
 
 # We need to filter out uninformative genes
 keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
@@ -204,10 +209,18 @@ keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
 # This design results in ~50,000 genes less (57925 -> 50433)
 summed_counts = summed_counts[keep.exprs, ]
 
+# Converting to factors
+coldata$Stage = factor(coldata$Stage, levels = c("Early", "Late"),
+                       labels = c("Early", "Late"))
+coldata$Sample.type = factor(coldata$Sample.type, levels = c("Normal", "Tumor"),
+                             labels = c("Normal", "Tumor"))
+coldata$Recurrence = factor(coldata$Recurrence, levels = c("No recurrence", "Recurrence"),
+                            labels = c("No recurrence", "Recurrence"))
+
 # Create a new DESeqDataSet object from the summed counts matrix
 dds <- DESeqDataSetFromMatrix(countData = summed_counts,
-                              colData = Pheno,
-                              design = design)
+                              colData = coldata,
+                              design = ~Sample.type*Stage*Recurrence)
 
 rm(unique_sample_ids, summed_counts, dds_pre); gc()
 
@@ -563,7 +576,7 @@ mdsplot = ggplot(mds, aes(x = `1`, y = `2`, color = Sample.type, shape = Recurre
   geom_text_repel(aes(label = Stage, segment.linetype = 1,
                       segment.color = "black", segment.size = 0.1),
                   min.segment.length = 0,
-                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03, max.overlaps = 50) +
   ggtitle("Multidimensional scaling: VST") +
   theme_classic() +
   scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
@@ -593,7 +606,7 @@ poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = Sample.type, sha
   geom_text_repel(aes(label = Stage, segment.linetype = 1,
                       segment.color = "black", segment.size = 0.1),
                   min.segment.length = 0,
-                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03) +
+                  size = 0.5, nudge_y = 0.03, nudge_x = 0.03, max.overlaps = 50) +
   ggtitle("Multidimensional scaling: Poisson distance (counts)") +
   theme_classic() +
   scale_color_manual(name = "Sample.type", values = c("orange", "purple4"),
