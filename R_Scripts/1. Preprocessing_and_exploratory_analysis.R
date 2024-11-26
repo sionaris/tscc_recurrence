@@ -26,7 +26,6 @@ library(PoiClaClu)
 library(EnhancedVolcano)
 library(genefilter)
 library(grid)
-library(openxlsx)
 
 # Preprocessing #####
 
