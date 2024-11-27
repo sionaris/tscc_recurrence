@@ -85,10 +85,10 @@ dds_pre = DESeqDataSetFromTximport(txi = txi,
 table(rowSums(dds_pre@assays@data@listData[["counts"]]==0)==80)
 
 # FALSE  TRUE 
-# 57925   4585
+# 57925   3585
 
-print(paste0(round(100*4585/(4585+57925), 2), "% of genes only have zero counts."))
-# 7.33% of genes only have zero counts
+print(paste0(round(100*3585/(3585+57925), 2), "% of genes only have zero counts."))
+# 5.83% of genes only have zero counts
 
 # We remove these genes from the experiment
 toremove = which(rowSums(dds_pre@assays@data@listData[["counts"]]==0)==80)
@@ -199,6 +199,13 @@ coldata = coldata %>%
   dplyr::select(-Recurrence, -names) %>%
   inner_join(Pheno, by = "Patient.ID")
 
+# Remove genes that were not mapped to gene symbols and still have ENSG# ID's
+# which map to RF####, AL####.# sequences
+keep.symbols = setdiff(rownames(dds_pre), 
+                       rownames(dds_pre)[grep("ENSG00", rownames(dds_pre))])
+dds_pre = dds_pre[keep.symbols, ]
+summed_counts = summed_counts[keep.symbols, ]
+
 # Create a full design matrix for the filtering
 design = model.matrix(~ coldata$Sample.type*coldata$Stage*coldata$Recurrence)
 rownames(design) = rownames(coldata)
@@ -206,7 +213,7 @@ rownames(design) = rownames(coldata)
 # We need to filter out uninformative genes
 keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
 
-# This design results in ~50,000 genes less (57925 -> 50433)
+# This design results in ~4,000 genes less (38339 -> 34049)
 summed_counts = summed_counts[keep.exprs, ]
 
 # Converting to factors
