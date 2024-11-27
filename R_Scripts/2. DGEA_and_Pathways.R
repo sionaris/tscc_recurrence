@@ -37,11 +37,49 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
 
 dds = DESeq(dds)
-dds = nbinomWaldTest(dds, maxit = 10000)
 
-# 77 non-convergent genes with maxit = 10000. They will be discarded
+# using pre-existing size factors
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# > dds = DESeq(dds)
+# using pre-existing size factors
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# 50 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# -- replacing outliers and refitting for 15625 genes
+# -- DESeq argument 'minReplicatesForReplace' = 7 
+# -- original counts are preserved in counts(dds)
+# estimating dispersions
+# fitting model and testing
+# 35 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+
 which(!mcols(dds)$betaConv)
-resultsNames(dds) # Names of the coefficients
+
+# We discard these rows from dds (some of them may end up as DEGs otherwise)
+dds_filt = dds[which(mcols(dds)$betaConv), ]
+resultsNames(dds_filt) # Names of the coefficients
 
 # Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
 # Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
@@ -67,24 +105,25 @@ contrasts = list(tumor_rec_vs_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No
                                                               "Sample.typeTumor.StageLate.RecurrenceRecurrence")))
 
 results <- list()
-beta_conv <- mcols(dds)$betaConv
+# beta_conv <- mcols(dds_filt)$betaConv
 for (i in 1:length(contrasts)) {
-  res <- results(dds, contrast = contrasts[[i]], test = "Wald")
+  results[[i]] = results(dds_filt, contrast = contrasts[[i]], test = "Wald")
+  # res <- results(dds_filt, contrast = contrasts[[i]], test = "Wald")
   
   # Add convergence information to the results object
-  res$betaConv <- beta_conv
-  res$Note <- ifelse(res$betaConv == FALSE, "Non-converged", "")
-  results[[i]] <- res
+  # res$betaConv <- beta_conv
+  # res$Note <- ifelse(res$betaConv == FALSE, "Non-converged", "")
+  # results[[i]] <- res
 }
-rm(res)
+
 names(results) <- paste0("res_", names(contrasts))
 gc()
 
 # Independent filtering
 metadata(results$res_tumor_rec_vs_tumor_no_rec)$filterThreshold
 
-# 33.47844% of genes do not pass the threshold
-# 3.224096
+# 25.20408% of genes do not pass the threshold
+# 3.663188
 
 # Shrinking logFCs
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
@@ -94,9 +133,9 @@ ashr_shrunk_results = list()
 for (i in 1:length(results)) {
   # normal_shrunk_results[[i]] = lfcShrink(dds, contrast = contrasts[[i]], type = "normal")
   ashr_shrunk_results[[i]] = lfcShrink(dds, res = results[[i]], type = "ashr")
-  ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
-  ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
-                                                   "Non-converged", "")
+  # ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
+  # ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
+  #                                                  "Non-converged", "")
 }
 names(ashr_shrunk_results) = names(results)
 
@@ -217,8 +256,8 @@ rm(genes, res, res_ashr, i, dgea_wb, dgea_wb_shrunk); gc()
 # MA-plots #####
 plot_ma <- function(data, title, show_legend=FALSE) {
   # Create a named vector for colors and labels
-  color_values <- c("red" = "red", "blue" = "blue", "grey" = "grey")
-  color_labels <- c("red" = "Non-converged", "blue" = "Significant", "grey" = "Not significant")
+  color_values <- c("blue" = "blue", "grey" = "grey")
+  color_labels <- c("blue" = "Significant", "grey" = "Not significant")
   
   # Start building the plot
   p <- ggplot(data, aes(x = mean_counts, y = log2FoldChange)) +
@@ -228,7 +267,7 @@ plot_ma <- function(data, title, show_legend=FALSE) {
   if (show_legend) {
     p <- p + scale_color_manual(values = color_values,
                                 labels = color_labels,
-                                name = "Convergence")
+                                name = "Gene status")
   } else {
     p <- p + scale_color_manual(values = color_values,
                                 labels = color_labels,
@@ -239,7 +278,7 @@ plot_ma <- function(data, title, show_legend=FALSE) {
   p <- p +
     geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
     labs(title = title,
-         x = expression(bold("Mean of normalized counts")),
+         x = expression(bold("Mean of Log"[2]*" (normalized counts + 1)")),
          y = expression(bold("Log"[2]*" fold change"))) +
     theme_minimal() +
     theme(plot.title = element_text(hjust = 0.5, face = "bold"))
@@ -275,8 +314,7 @@ for (i in 1:length(results)) {
   res_df <- res_df[!is.na(res_df$log2FoldChange) & !is.na(res_df$mean_counts), ]
   
   # Create 'Color' column based on your logic
-  res_df$Color <- ifelse(res_df$Note == "Non-converged", "red",
-                         ifelse(res_df$padj < 0.05, "blue", "grey"))
+  res_df$Color <- ifelse(res_df$padj < 0.05, "blue", "grey")
   
   # Repeat similar steps for ashr_shrunk_results
   res_shrunk_df <- as.data.frame(ashr_shrunk_results[[i]])
@@ -294,8 +332,7 @@ for (i in 1:length(results)) {
   res_shrunk_df$Note <- res_df$Note[match(rownames(res_shrunk_df), rownames(res_df))]
   
   # Create 'Color' column for shrunk results
-  res_shrunk_df$Color <- ifelse(res_shrunk_df$Note == "Non-converged", "red",
-                                ifelse(res_shrunk_df$padj < 0.05, "blue", "grey"))
+  res_shrunk_df$Color <- ifelse(res_shrunk_df$padj < 0.05, "blue", "grey")
   
   # Create MA plots
   p1 <- plot_ma(res_df, "MA plot: raw LFCs")
@@ -318,8 +355,7 @@ for (i in 1:length(results)) {
   res = results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj) %>%
-    dplyr::filter(Note != "Non-converged")
+    dplyr::arrange(padj)
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -398,8 +434,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   res = ashr_shrunk_results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj) %>%
-    dplyr::filter(Note != "Non-converged")
+    dplyr::arrange(padj)
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -506,8 +541,6 @@ for (i in 1:length(results)) {
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
     dplyr::arrange(padj) %>%
-    dplyr::filter(Note != "Non-converged") %>%
-    dplyr::select(-Note, -betaConv) %>%
     na.omit()
   
   topDEGs = res[which(res$padj < 0.05),]
@@ -604,10 +637,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   res = ashr_shrunk_results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj) %>%
-    dplyr::filter(Note != "Non-converged") %>%
-    dplyr::select(-Note, -betaConv) %>%
-    na.omit()
+    dplyr::arrange(padj)
   
   topDEGs = res[which(res$padj < 0.05),]
   
