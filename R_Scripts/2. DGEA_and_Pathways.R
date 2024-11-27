@@ -25,6 +25,7 @@ library(PoiClaClu)
 library(EnhancedVolcano)
 library(genefilter)
 library(grid)
+library(gridExtra)
 
 # Import environment
 load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
@@ -36,68 +37,54 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
 
 dds = DESeq(dds)
+dds = nbinomWaldTest(dds, maxit = 10000)
+
+# 77 non-convergent genes with maxit = 10000. They will be discarded
+which(!mcols(dds)$betaConv)
 resultsNames(dds) # Names of the coefficients
 
-# Rename for easy contrast call
-contrast_tumor_vs_normal = "Pheno.Sample.typeTumor"
-contrast_late_vs_early = "Pheno.StageLate"
-contrast_recurrence_vs_norec = "Pheno.RecurrenceRecurrence"
-contrast_tumor_rec = "Pheno.Sample.typeTumor.Pheno.RecurrenceRecurrence"
-contrast_late_rec = "Pheno.StageLate.Pheno.RecurrenceRecurrence"
+# Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
+# Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
+# Stage_Late_vs_Early: Effect of late stage compared to early.
+# Recurrence_Recurrence_vs_No.recurrence: Effect of recurrence compared to no recurrence in normal samples.
+# Sample.typeTumor.StageLate: Additional effect in tumor samples at late stage.
+# Sample.typeTumor.RecurrenceRecurrence: Additional effect of recurrence in tumor samples.
+# StageLate.RecurrenceRecurrence: Additional effect of recurrence in late-stage samples.
+# Sample.typeTumor.StageLate.RecurrenceRecurrence: Additional effect of recurrence in late-stage tumor samples.
 
 # Create contrast list
-contrasts = list(Rec_vs_norec = list(c(contrast_recurrence_vs_norec,
-                                       contrast_tumor_rec)),
-                 )
+contrasts = list(tumor_rec_vs_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
+                                                    "Sample.typeTumor.RecurrenceRecurrence")),
+                 late_tumor_rec_vs_early_tumor_rec = list(c("Stage_Late_vs_Early", 
+                                                            "Sample.typeTumor.StageLate",
+                                                            "StageLate.RecurrenceRecurrence", 
+                                                            "Sample.typeTumor.StageLate.RecurrenceRecurrence")),
+                 early_tumor_rec_vs_early_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
+                                                                "Sample.typeTumor.RecurrenceRecurrence")),
+                 late_tumor_rec_vs_late_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
+                                                              "Sample.typeTumor.RecurrenceRecurrence",
+                                                              "StageLate.RecurrenceRecurrence", 
+                                                              "Sample.typeTumor.StageLate.RecurrenceRecurrence")))
 
-contrasts = list(HMBA24h_vs_Control48h = list("treatment_HMBA_vs_control",
-                                              "timepoint_48h_vs_24h"),
-                 HMBA48h_vs_Control48h = list(c("treatment_HMBA_vs_control", 
-                                                "treatmentHMBA.timepoint48h")),
-                 HMBA72h_vs_Control48h = list(c("treatment_HMBA_vs_control",
-                                                "timepoint_72h_vs_24h",
-                                                "treatmentHMBA.timepoint72h"),
-                                              "timepoint_48h_vs_24h"),
-                 HMBA48h_vs_HMBA24h = list(c("timepoint_48h_vs_24h",
-                                             "treatmentHMBA.timepoint48h")),
-                 HMBA72h_vs_HMBA24h = list(c("treatmentHMBA.timepoint72h",
-                                             "timepoint_72h_vs_24h")),
-                 HMBA72h_vs_HMBA48h = list(c("treatmentHMBA.timepoint72h",
-                                             "timepoint_72h_vs_24h"), 
-                                           c("timepoint_48h_vs_24h",
-                                             "treatmentHMBA.timepoint48h")))
+results <- list()
+beta_conv <- mcols(dds)$betaConv
+for (i in 1:length(contrasts)) {
+  res <- results(dds, contrast = contrasts[[i]], test = "Wald")
+  
+  # Add convergence information to the results object
+  res$betaConv <- beta_conv
+  res$Note <- ifelse(res$betaConv == FALSE, "Non-converged", "")
+  results[[i]] <- res
+}
+rm(res)
+names(results) <- paste0("res_", names(contrasts))
+gc()
 
-# hmba24h vs control48h
-res_HMBA24h_vs_control48h <- results(dds, contrast=contrasts[["HMBA24h_vs_Control48h"]], 
-                                     listValues=c(1, -1), test = "Wald")
+# Independent filtering
+metadata(results$res_tumor_rec_vs_tumor_no_rec)$filterThreshold
 
-# hmba48h vs control48h
-res_HMBA48h_vs_control48h <- results(dds, 
-                                     contrast=contrasts[["HMBA48h_vs_Control48h"]], 
-                                     listValues=c(1, -1), test = "Wald")
-
-# hmba72h vs control48h
-res_HMBA72h_vs_control48h <- results(dds, contrast=contrasts[["HMBA72h_vs_Control48h"]],
-                                     listValues=c(1, -1), test = "Wald")
-
-# HMBA48h vs HMBA24h
-res_HMBA48h_vs_HMBA24h <- results(dds, 
-                                  contrast=contrasts[["HMBA48h_vs_HMBA24h"]],
-                                  listValues=c(1, -1), test = "Wald")
-
-# HMBA72h vs HMBA24h
-res_HMBA72h_vs_HMBA24h <- results(dds, 
-                                  contrast=contrasts[["HMBA72h_vs_HMBA24h"]], 
-                                  listValues=c(1, -1), test = "Wald")
-
-# HMBA72h vs HMBA48h
-res_HMBA72h_vs_HMBA48h <- results(dds, contrast=contrasts[["HMBA72h_vs_HMBA48h"]],
-                                  listValues=c(1, -1), test = "Wald")
-
-results = list(res_HMBA24h_vs_control48h, res_HMBA48h_vs_control48h, 
-               res_HMBA72h_vs_control48h, res_HMBA48h_vs_HMBA24h,
-               res_HMBA72h_vs_HMBA24h, res_HMBA72h_vs_HMBA48h)
-names(results) = names(contrasts)
+# 33.47844% of genes do not pass the threshold
+# 3.224096
 
 # Shrinking logFCs
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
@@ -105,30 +92,31 @@ names(results) = names(contrasts)
 ashr_shrunk_results = list()
 
 for (i in 1:length(results)) {
-  # apeglm_shrunk_results[[i]] = lfcShrink(dds, contrast = contrasts[[i]], type = "apeglm")
   # normal_shrunk_results[[i]] = lfcShrink(dds, contrast = contrasts[[i]], type = "normal")
   ashr_shrunk_results[[i]] = lfcShrink(dds, res = results[[i]], type = "ashr")
+  ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
+  ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
+                                                   "Non-converged", "")
 }
 names(ashr_shrunk_results) = names(results)
 
 # Create a workbook and save data there to export later
-library(openxlsx)
-dgea_wb = createWorkbook()
-dgea_wb_shrunk = createWorkbook()
+dgea_wb <- createWorkbook()
+dgea_wb_shrunk <- createWorkbook()
 
-# Create header and body styles for the output Excel Sheet
-header_style = createStyle(textDecoration = "bold")
-body_style = createStyle(halign = "left", valign = "center")
+# Create header and body styles
+header_style <- createStyle(textDecoration = "bold")
+body_style <- createStyle(halign = "left", valign = "center")
 
-# Choose if you want the colored gene symbols or not (color coding is time-consuming)
-color_handle = FALSE # Change that to FALSE if you don't want colored symbols
+# Set color_handle to TRUE to enable coloring
+color_handle <- FALSE  # Change this to TRUE to enable colored symbols
 
 if (color_handle) {
-  blue_style = createStyle(fontColour = "#279AE5", textDecoration = "bold")  # Blue and bold
-  red_style = createStyle(fontColour = "#B91B60", textDecoration = "bold")  # Red and bold
-  grey_style = createStyle(fontColour = "#818383", textDecoration = "bold")  # Grey and bold
+  blue_style <- createStyle(fontColour = "#279AE5", textDecoration = "bold")  # Blue and bold
+  red_style <- createStyle(fontColour = "#B91B60", textDecoration = "bold")   # Red and bold
+  grey_style <- createStyle(fontColour = "#818383", textDecoration = "bold")  # Grey and bold
   
-  # Define a function to determine the color style based on the conditions
+  # Function to determine the color style based on conditions
   getStyle <- function(log2foldchange, padj) {
     if (is.na(log2foldchange) | is.na(padj)) {
       return(grey_style)
@@ -142,97 +130,187 @@ if (color_handle) {
   }
 }
 
-# Create data frames that will be exported into .xlsx files
-for (i in 1:length(results)) {
+# Create short sheet names
+short_sheet_names <- c("TR_vs_TNR", "LTR_vs_ETR", "ETR_vs_ETNR", "LTR_vs_LTNR")
+short_sheet_names_ashr <- paste0("ashr_", short_sheet_names)
+
+# Loop through results
+for (i in seq_along(results)) {
   # Raw LFCs
-  genes = rownames(results[[i]])
-  res = results[[i]]@listData %>%
-    as.data.frame() %>% 
+  genes <- rownames(results[[i]])
+  res <- results[[i]]@listData %>%
+    as.data.frame() %>%
     mutate(Gene.Symbol = genes) %>%
     dplyr::arrange(padj) %>%
     dplyr::select(Gene.Symbol, everything())
   
-  addWorksheet(dgea_wb, names(results)[i])
-  writeData(dgea_wb, names(results)[i], res)
+  # Add worksheet and write data
+  addWorksheet(dgea_wb, short_sheet_names[i])
+  writeData(dgea_wb, short_sheet_names[i], res)
   
-  # Apply the styles
-  addStyle(dgea_wb, names(results)[i], style = header_style, rows = 1, 
-           cols = 1:ncol(res), gridExpand = TRUE) # first row only
-  addStyle(dgea_wb, names(results)[i], style = body_style, rows = 2:nrow(res), 
-           cols = 1:ncol(res), gridExpand = TRUE)
+  # Apply header style
+  addStyle(dgea_wb, sheet = short_sheet_names[i], style = header_style,
+           rows = 1, cols = 1:ncol(res), gridExpand = TRUE)
+  
+  # Apply body style
+  addStyle(dgea_wb, sheet = short_sheet_names[i], style = body_style,
+           rows = 2:(nrow(res) + 1), cols = 1:ncol(res), gridExpand = TRUE)
   
   if (color_handle) {
-    color_styles = mapply(getStyle, res$log2FoldChange, res$padj)
-    mapply(addStyle, MoreArgs = list(wb = dgea_wb, sheet = names(results)[i], 
-                                     cols = which(colnames(res) == "Gene.Symbol")), 
-           style = color_styles, rows = 2:(nrow(res)+1))
+    # Generate color styles for each gene
+    color_styles <- mapply(getStyle, res$log2FoldChange, res$padj, SIMPLIFY = FALSE)
+    
+    # Apply color styles to the 'Gene.Symbol' column
+    for (j in seq_along(color_styles)) {
+      addStyle(dgea_wb, sheet = short_sheet_names[i],
+               style = color_styles[[j]],
+               rows = j + 1,  # Adjust for header row
+               cols = which(colnames(res) == "Gene.Symbol"),
+               gridExpand = FALSE,
+               stack = TRUE)
+    }
   }
   
   # ASHR LFCs
-  genes = rownames(ashr_shrunk_results[[i]])
-  res_ashr = ashr_shrunk_results[[i]]@listData %>%
-    as.data.frame() %>% 
-    mutate(Gene.Symbol = genes) %>%
+  genes_ashr <- rownames(ashr_shrunk_results[[i]])
+  res_ashr <- ashr_shrunk_results[[i]]@listData %>%
+    as.data.frame() %>%
+    mutate(Gene.Symbol = genes_ashr) %>%
     dplyr::arrange(padj) %>%
     dplyr::select(Gene.Symbol, everything())
   
-  addWorksheet(dgea_wb_shrunk, names(ashr_shrunk_results)[i])
-  writeData(dgea_wb_shrunk, names(ashr_shrunk_results)[i], res_ashr)
+  # Add worksheet and write data
+  addWorksheet(dgea_wb_shrunk, short_sheet_names_ashr[i])
+  writeData(dgea_wb_shrunk, short_sheet_names_ashr[i], res_ashr)
   
-  # Apply the styles
-  addStyle(dgea_wb_shrunk, names(ashr_shrunk_results)[i], style = header_style, 
-           rows = 1, cols = 1:ncol(res_ashr), gridExpand = TRUE) # first row only
-  addStyle(dgea_wb_shrunk, names(ashr_shrunk_results)[i], style = body_style, 
-           rows = 2:nrow(res_ashr), cols = 1:ncol(res_ashr), gridExpand = TRUE)
+  # Apply header style
+  addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i], style = header_style,
+           rows = 1, cols = 1:ncol(res_ashr), gridExpand = TRUE)
+  
+  # Apply body style
+  addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i], style = body_style,
+           rows = 2:(nrow(res_ashr) + 1), cols = 1:ncol(res_ashr), gridExpand = TRUE)
   
   if (color_handle) {
-    color_styles = mapply(getStyle, res_ashr$log2FoldChange, res_ashr$padj)
-    mapply(addStyle, MoreArgs = list(wb = dgea_wb_shrunk, 
-                                     sheet = names(ashr_shrunk_results)[i], 
-                                     cols = which(colnames(res_ashr) == "Gene.Symbol")), 
-           style = color_styles, rows = 2:(nrow(res_ashr)+1))
+    # Generate color styles for each gene
+    color_styles_ashr <- mapply(getStyle, res_ashr$log2FoldChange, res_ashr$padj, SIMPLIFY = FALSE)
+    
+    # Apply color styles to the 'Gene.Symbol' column
+    for (j in seq_along(color_styles_ashr)) {
+      addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i],
+               style = color_styles_ashr[[j]],
+               rows = j + 1,  # Adjust for header row
+               cols = which(colnames(res_ashr) == "Gene.Symbol"),
+               gridExpand = FALSE,
+               stack = TRUE)
+    }
   }
 }
 
-# Create DGEA folder
-if (!dir.exists("DGEA")) {
-  dir.create("DGEA")
+# Save workbooks
+saveWorkbook(dgea_wb, "Results/DGEA/DGEA_raw.xlsx", overwrite = TRUE)
+saveWorkbook(dgea_wb_shrunk, "Results/DGEA/DGEA_ashr.xlsx", overwrite = TRUE)
+
+# Clean up
+rm(genes, res, res_ashr, i, dgea_wb, dgea_wb_shrunk); gc()
+
+# MA-plots #####
+plot_ma <- function(data, title, show_legend=FALSE) {
+  # Create a named vector for colors and labels
+  color_values <- c("red" = "red", "blue" = "blue", "grey" = "grey")
+  color_labels <- c("red" = "Non-converged", "blue" = "Significant", "grey" = "Not significant")
+  
+  # Start building the plot
+  p <- ggplot(data, aes(x = mean_counts, y = log2FoldChange)) +
+    geom_point(aes(color = Color), size = 0.5, alpha = 0.5)
+  
+  # Add scale_color_manual with or without guide based on show_legend
+  if (show_legend) {
+    p <- p + scale_color_manual(values = color_values,
+                                labels = color_labels,
+                                name = "Convergence")
+  } else {
+    p <- p + scale_color_manual(values = color_values,
+                                labels = color_labels,
+                                guide = "none")
+  }
+  
+  # Continue building the plot
+  p <- p +
+    geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
+    labs(title = title,
+         x = expression(bold("Mean of normalized counts")),
+         y = expression(bold("Log"[2]*" fold change"))) +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  
+  # Position the legend on the right if show_legend is TRUE
+  if (show_legend) {
+    p <- p + theme(legend.position = "right")
+  } else {
+    p <- p + theme(legend.position = "none")
+  }
+  
+  return(p)
 }
 
-saveWorkbook(dgea_wb, "DGEA/DGEA_raw.xlsx",
-             overwrite = TRUE)
-saveWorkbook(dgea_wb_shrunk, "DGEA/DGEA_ashr.xlsx",
-             overwrite = TRUE)
-rm(genes, res, res_ashr, i); gc()
-
-# MA-plots
-if (!dir.exists("DGEA/MA_plots")) {
-  dir.create("DGEA/MA_plots")
-}
 
 for (i in 1:length(results)) {
-  tiff(paste0("DGEA/MA_plots/MA_plot_",
-              names(results)[i], ".tiff"), res = 700,
-       width = 8000, height = 4000, compression = "lzw")
-  par(mfrow=c(1,2), mar=c(4,4,2,1))
-  print(DESeq2::plotMA(results[[i]], main = "MA plot: raw LFCs",
-                       xlab = substitute(paste(bold('Mean of normalized counts'))),
-                       ylab = substitute(paste(bold('log fold change'))),
-                       alpha = 0.05))
-  print(DESeq2::plotMA(ashr_shrunk_results[[i]], main = "MA plot: ashr shrunk LFCs",
-                       xlab = substitute(paste(bold('Mean of normalized counts'))),
-                       ylab = substitute(paste(bold('log fold change'))),
-                       alpha = 0.05))
+  # Extract data from results
+  res_df <- as.data.frame(results[[i]])
+  
+  # Get log2.norm.counts and compute mean normalized counts for each gene
+  mean_norm_counts <- rowMeans(log2.norm.counts.plus1)
+  
+  # Ensure that the genes are matched correctly
+  # Subset mean_norm_counts to include only genes in res_df
+  common_genes <- intersect(rownames(res_df), names(mean_norm_counts))
+  res_df <- res_df[common_genes, ]
+  mean_norm_counts <- mean_norm_counts[common_genes]
+  
+  # Add mean_norm_counts to res_df
+  res_df$mean_counts <- mean_norm_counts
+  
+  # Remove rows with NA in 'log2FoldChange' or 'mean_counts'
+  res_df <- res_df[!is.na(res_df$log2FoldChange) & !is.na(res_df$mean_counts), ]
+  
+  # Create 'Color' column based on your logic
+  res_df$Color <- ifelse(res_df$Note == "Non-converged", "red",
+                         ifelse(res_df$padj < 0.05, "blue", "grey"))
+  
+  # Repeat similar steps for ashr_shrunk_results
+  res_shrunk_df <- as.data.frame(ashr_shrunk_results[[i]])
+  
+  # Ensure genes are matched
+  res_shrunk_df <- res_shrunk_df[common_genes, ]
+  
+  # Add mean_counts to res_shrunk_df
+  res_shrunk_df$mean_counts <- mean_norm_counts
+  
+  # Remove rows with NA in 'log2FoldChange' or 'mean_counts'
+  res_shrunk_df <- res_shrunk_df[!is.na(res_shrunk_df$log2FoldChange) & !is.na(res_shrunk_df$mean_counts), ]
+  
+  # Ensure 'Note' column matches the filtered res_df
+  res_shrunk_df$Note <- res_df$Note[match(rownames(res_shrunk_df), rownames(res_df))]
+  
+  # Create 'Color' column for shrunk results
+  res_shrunk_df$Color <- ifelse(res_shrunk_df$Note == "Non-converged", "red",
+                                ifelse(res_shrunk_df$padj < 0.05, "blue", "grey"))
+  
+  # Create MA plots
+  p1 <- plot_ma(res_df, "MA plot: raw LFCs")
+  p2 <- plot_ma(res_shrunk_df, "MA plot: ashr shrunk LFCs", show_legend = TRUE)
+  
+  # Save the plots side by side
+  tiff(filename = paste0("Results/DGEA/MA_plots/MA_plot_", names(results)[i], ".tiff"),
+       res = 300, width = 4000, height = 2000, compression = "lzw")
+  grid.arrange(p1, p2, ncol = 2)
   dev.off()
 }
 
-# Volcano plots
-library(EnhancedVolcano)
+rm(res_df, res_shrunk_df, mean_norm_counts, common_genes, p1, p2); gc()
 
-if (!dir.exists("DGEA/Volcano_plots")) {
-  dir.create("DGEA/Volcano_plots")
-}
-
+# Volcano plots #####
 # Volcano loop (raw LFCs)
 for (i in 1:length(results)) {
   # Construct the data frame
@@ -240,7 +318,8 @@ for (i in 1:length(results)) {
   res = results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+    dplyr::arrange(padj) %>%
+    dplyr::filter(Note != "Non-converged")
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -306,7 +385,7 @@ for (i in 1:length(results)) {
   
   volcano
   ggsave(filename = paste0("Volcano_raw_LFCs_", names(results)[i], ".tiff"),
-         path = "DGEA/Volcano_plots", 
+         path = "Results/DGEA/Volcano_plots", 
          width = 152, height = 142, device = 'tiff', units = "mm",
          dpi = 700, compression = "lzw")
 }
@@ -319,7 +398,8 @@ for (i in 1:length(ashr_shrunk_results)) {
   res = ashr_shrunk_results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+    dplyr::arrange(padj) %>%
+    dplyr::filter(Note != "Non-converged")
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -385,51 +465,35 @@ for (i in 1:length(ashr_shrunk_results)) {
   
   volcano
   ggsave(filename = paste0("Volcano_ashr_shrunk_LFCs_", names(ashr_shrunk_results)[i], ".tiff"),
-         path = "DGEA/Volcano_plots", 
+         path = "Results/DGEA/Volcano_plots", 
          width = 152, height = 142, device = 'tiff', units = "mm",
          dpi = 700, compression = "lzw")
 }
 rm(genes, i, res, keyvals.colour, volcano)
 
-# Gene clustering with mean-centered values from the VST data
-library(genefilter)
-
-# Create output directories
-if (!dir.exists("DGEA/Post_DGEA_heatmaps")) {
-  dir.create("DGEA/Post_DGEA_heatmaps")
-}
-
-# Subdirectories
-if (!dir.exists("DGEA/Post_DGEA_heatmaps/raw_lfcs")) {
-  dir.create("DGEA/Post_DGEA_heatmaps/raw_lfcs")
-}
-
-if (!dir.exists("DGEA/Post_DGEA_heatmaps/ashr_shrunk")) {
-  dir.create("DGEA/Post_DGEA_heatmaps/ashr_shrunk")
-}
-
 # Number of features for plots
-n_degs = 20
+n_degs = 100
 
 # Top n_degs variable genes fromt the VST object
 topVarGenes = head(order(rowVars(assay(vsd)), decreasing = TRUE), n_degs)
 matvar  = assay(vsd)[topVarGenes, ]
 matvar  = matvar - rowMeans(matvar)
 colnames(matvar) = colnames(assay(vsd))
-anno = as.data.frame(colData(vsd)[, c("batch", "treatment", "timepoint")])
+anno = as.data.frame(colData(vsd)[, c("Sample.type", "Stage", "Recurrence")])
 
 # Create a custom palette with 20*14 = 280 color breaks (one for each tile)
 colors2 = colorRampPalette(c(viridisLite::mako(280)[140:280],
                              rev(viridisLite::rocket(280)[140:280])))(280)
 
-tiff(paste0("DGEA/Post_DGEA_heatmaps/VST_top20vargenes_samples_heatmap.tiff"),
+tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/VST_top", n_degs, "vargenes_samples_heatmap.tiff"),
      res = 700, width = 6760, 
      height = 4760, compression = "lzw")
 pheatmap(matvar, annotation_col = anno,
          col = colors2,
          fontsize = 8,
+         fontsize_row = 3,
          cutree_col = 2,
-         main = "Top 20 variable VST genes (centered) heatmap",
+         main = paste0("Top ", n_degs, " variable VST genes (centered) heatmap"),
          annotation_colors = ann_colors,
          cluster_rows = FALSE)
 dev.off()
@@ -441,7 +505,10 @@ for (i in 1:length(results)) {
   res = results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+    dplyr::arrange(padj) %>%
+    dplyr::filter(Note != "Non-converged") %>%
+    dplyr::select(-Note, -betaConv) %>%
+    na.omit()
   
   topDEGs = res[which(res$padj < 0.05),]
   
@@ -468,8 +535,8 @@ for (i in 1:length(results)) {
   gaps_row = length(which(genes_order$log2FoldChange < 0))
   genes_order = genes_order$Gene.Symbol
   
-  sample_order = anno %>% dplyr::arrange(treatment)
-  gaps_col = length(which(sample_order$treatment == "control"))
+  sample_order = anno %>% dplyr::arrange(Recurrence)
+  gaps_col = length(which(sample_order$Recurrence == "No recurrence"))
   sample_order = rownames(sample_order)
   
   matcount_ordered = matcount[genes_order, sample_order]
@@ -480,7 +547,7 @@ for (i in 1:length(results)) {
   
   # In the plot below the cluster distances are not affected by the log-transformation
   # of the matrix. It is only used to make a smoother color scale
-  tiff(paste0("DGEA/Post_DGEA_heatmaps/raw_lfcs/",
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
               names(results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
        res = 700, width = 7260, 
        height = 5760, compression = "lzw")
@@ -503,7 +570,7 @@ for (i in 1:length(results)) {
   
   
   # Ordered genes and samples
-  tiff(paste0("DGEA/Post_DGEA_heatmaps/raw_lfcs/",
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
               names(results)[i], "_DEG_samples_ordered.tiff"),
        res = 700, width = 7260, 
        height = 5760, compression = "lzw")
@@ -517,7 +584,7 @@ for (i in 1:length(results)) {
            gaps_col = gaps_col,
            cutree_cols = 2,
            fontsize = 8,
-           fontsize_row = 8,
+           fontsize_row = 4,
            fontsize_col = 6,
            border_color = "grey60",
            main = paste0(names(results)[i], 
@@ -537,7 +604,10 @@ for (i in 1:length(ashr_shrunk_results)) {
   res = ashr_shrunk_results[[i]]@listData %>%
     as.data.frame() %>% 
     mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+    dplyr::arrange(padj) %>%
+    dplyr::filter(Note != "Non-converged") %>%
+    dplyr::select(-Note, -betaConv) %>%
+    na.omit()
   
   topDEGs = res[which(res$padj < 0.05),]
   
@@ -564,8 +634,8 @@ for (i in 1:length(ashr_shrunk_results)) {
   gaps_row = length(which(genes_order$log2FoldChange < 0))
   genes_order = genes_order$Gene.Symbol
   
-  sample_order = anno %>% dplyr::arrange(treatment)
-  gaps_col = length(which(sample_order$treatment == "control"))
+  sample_order = anno %>% dplyr::arrange(Recurrence)
+  gaps_col = length(which(sample_order$Recurrence == "No recurrence"))
   sample_order = rownames(sample_order)
   
   matcount_ordered = matcount[genes_order, sample_order]
@@ -576,7 +646,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   
   # In the plot below the cluster distances are not affected by the log-transformation
   # of the matrix. It is only used to make a smoother color scale
-  tiff(paste0("DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
               names(ashr_shrunk_results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
        res = 700, width = 7260, 
        height = 5760, compression = "lzw")
@@ -589,7 +659,7 @@ for (i in 1:length(ashr_shrunk_results)) {
            cutree_cols = 2,
            cutree_rows = 2,
            fontsize = 8,
-           fontsize_row = 8,
+           fontsize_row = 4,
            fontsize_col = 6,
            main = paste0(names(ashr_shrunk_results)[i], 
                          " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
@@ -599,7 +669,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   
   
   # Ordered genes and samples
-  tiff(paste0("DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
               names(ashr_shrunk_results)[i], "_DEG_samples_ordered.tiff"),
        res = 700, width = 7260, 
        height = 5760, compression = "lzw")
@@ -613,7 +683,7 @@ for (i in 1:length(ashr_shrunk_results)) {
            gaps_col = gaps_col,
            cutree_cols = 2,
            fontsize = 8,
-           fontsize_row = 8,
+           fontsize_row = 4,
            fontsize_col = 6,
            border_color = "grey60",
            main = paste0(names(ashr_shrunk_results)[i], 
@@ -629,5 +699,9 @@ rm(genes, i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
 
 gc()
 
-# Session info
-sessionInfo()
+# Export a session info text file for reproducibility
+writeLines(capture.output(sessionInfo()), 
+           paste0("Resources_and_environments/DGEA_sessionInfo.txt"))
+
+# Save environment for easy loading for DGEA later
+save.image("Resources_and_environments/DGEA.RData")
