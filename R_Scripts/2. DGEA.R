@@ -91,37 +91,83 @@ resultsNames(dds_filt) # Names of the coefficients
 # Sample.typeTumor.StageLate.RecurrenceRecurrence: Additional effect of recurrence in late-stage tumor samples.
 
 # Create contrast list
-contrasts = list(tumor_rec_vs_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
-                                                    "Sample.typeTumor.RecurrenceRecurrence")),
-                 late_tumor_rec_vs_early_tumor_rec = list(c("Stage_Late_vs_Early", 
-                                                            "Sample.typeTumor.StageLate",
-                                                            "StageLate.RecurrenceRecurrence", 
-                                                            "Sample.typeTumor.StageLate.RecurrenceRecurrence")),
-                 early_tumor_rec_vs_early_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
-                                                                "Sample.typeTumor.RecurrenceRecurrence")),
-                 late_tumor_rec_vs_late_tumor_no_rec = list(c("Recurrence_Recurrence_vs_No.recurrence",
-                                                              "Sample.typeTumor.RecurrenceRecurrence",
-                                                              "StageLate.RecurrenceRecurrence", 
-                                                              "Sample.typeTumor.StageLate.RecurrenceRecurrence")))
+contrasts <- list(
+  # 1. Recurrent Tumors vs. Non-Recurrent Tumors Overall
+  tumor_rec_vs_tumor_no_rec = list(
+    contrast = c(
+      "Recurrence_Recurrence_vs_No.recurrence",
+      "Sample.typeTumor.RecurrenceRecurrence",
+      "StageLate.RecurrenceRecurrence",
+      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+    ),
+    listValues = c(1, 1, 0.5, 0.5)
+  ),
+  
+  # 2. Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors
+  late_tumor_rec_vs_early_tumor_rec = list(
+    contrast = c(
+      "Stage_Late_vs_Early",
+      "Sample.typeTumor.StageLate",
+      "StageLate.RecurrenceRecurrence",
+      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+    ),
+    listValues = c(1, 1, 1, 1)
+  ),
+  
+  # 3. Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
+  early_tumor_rec_vs_early_tumor_no_rec = list(
+    contrast = c(
+      "Recurrence_Recurrence_vs_No.recurrence",
+      "Sample.typeTumor.RecurrenceRecurrence"
+    ),
+    listValues = c(1, 1)
+  ),
+  
+  # 4. Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
+  late_tumor_rec_vs_late_tumor_no_rec = list(
+    contrast = c(
+      "Recurrence_Recurrence_vs_No.recurrence",
+      "Sample.typeTumor.RecurrenceRecurrence",
+      "StageLate.RecurrenceRecurrence",
+      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+    ),
+    listValues = c(1, 1, 1, 1)
+  )
+)
 
 results <- list()
-# beta_conv <- mcols(dds_filt)$betaConv
-for (i in 1:length(contrasts)) {
-  results[[i]] = results(dds_filt, contrast = contrasts[[i]], test = "Wald")
-  # res <- results(dds_filt, contrast = contrasts[[i]], test = "Wald")
-  
-  # Add convergence information to the results object
-  # res$betaConv <- beta_conv
-  # res$Note <- ifelse(res$betaConv == FALSE, "Non-converged", "")
-  # results[[i]] <- res
-}
+coefNames <- resultsNames(dds_filt)  # Get the names of the coefficients in your model
 
+for (i in 1:length(contrasts)) {
+  contrastNames <- contrasts[[i]][[1]]
+  contrastValues <- contrasts[[i]][[2]]
+  
+  # Initialize a contrast vector with zeros
+  contrastVector <- setNames(rep(0, length(coefNames)), coefNames)
+  
+  # Assign the specified values to the corresponding coefficients
+  contrastVector[contrastNames] <- contrastValues
+  
+  # Pass the named numeric vector to the contrast argument
+  results[[i]] <- results(dds_filt, contrast = contrastVector, test = "Wald")
+}
 names(results) <- paste0("res_", names(contrasts))
 gc()
 
 # Independent filtering
-metadata(results$res_tumor_rec_vs_tumor_no_rec)$filterThreshold
+metadata(results[[1]])$filterThreshold
+# 17.44898% of genes do not pass the threshold
+# 1.566959
 
+metadata(results[[2]])$filterThreshold
+# 25.20408% of genes do not pass the threshold
+# 3.663188
+
+metadata(results[[3]])$filterThreshold
+# 25.20408% of genes do not pass the threshold
+# 3.663188
+
+metadata(results[[4]])$filterThreshold
 # 25.20408% of genes do not pass the threshold
 # 3.663188
 
