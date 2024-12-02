@@ -178,7 +178,7 @@ ashr_shrunk_results = list()
 
 for (i in 1:length(results)) {
   # normal_shrunk_results[[i]] = lfcShrink(dds, contrast = contrasts[[i]], type = "normal")
-  ashr_shrunk_results[[i]] = lfcShrink(dds, res = results[[i]], type = "ashr")
+  ashr_shrunk_results[[i]] = lfcShrink(dds_filt, res = results[[i]], type = "ashr")
   # ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
   # ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
   #                                                  "Non-converged", "")
@@ -593,14 +593,14 @@ for (i in 1:length(results)) {
   
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
-  matcount = assay(dds)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds[topDEGs$Gene.Symbol,])))
+  matcount = assay(dds_filt)[topDEGs$Gene.Symbol,]
+  DEGpoisd = PoissonDistance(t(counts(dds_filt[topDEGs$Gene.Symbol,])))
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
-  rownames(DEGsamplePoisDistMatrix) = dds$cell_line
+  rownames(DEGsamplePoisDistMatrix) = dds_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_filt[topDEGs$Gene.Symbol,]))
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
@@ -689,14 +689,14 @@ for (i in 1:length(ashr_shrunk_results)) {
   
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
-  matcount = assay(dds)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds[topDEGs$Gene.Symbol,])))
+  matcount = assay(dds_filt)[topDEGs$Gene.Symbol,]
+  DEGpoisd = PoissonDistance(t(counts(dds_filt[topDEGs$Gene.Symbol,])))
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
-  rownames(DEGsamplePoisDistMatrix) = dds$cell_line
+  rownames(DEGsamplePoisDistMatrix) = dds_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_filt[topDEGs$Gene.Symbol,]))
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
@@ -778,6 +778,9 @@ gc()
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
            paste0("Resources_and_environments/DGEA_sessionInfo.txt"))
+
+# Export dds_filt object
+saveRDS(dds_filt, "Resources_and_environments/final_dds.rds")
 
 # Save environment for easy loading for DGEA later
 save.image("Resources_and_environments/DGEA.RData")
