@@ -11,7 +11,7 @@ library(org.Hs.eg.db)
 library(pathfindR)
 library(cowplot)
 
-# Import data (6 lists from DGEA)
+# Import data (4 lists from DGEA)
 ashr_dgea = list()
 for (i in 1:4) {
   ashr_dgea[[i]] = openxlsx::read.xlsx("Results/DGEA/DGEA_ashr.xlsx", sheet = i)
@@ -21,6 +21,9 @@ rm(i); gc()
 names(ashr_dgea) = paste0("ashr_", 
                           c("TR_vs_TNR", "LTR_vs_ETR", 
                             "ETR_vs_ETNR", "LTR_vs_LTNR"))
+
+# Import dds object
+dds = readRDS("Resources_and_environments/final_dds.rds")
 
 # Create output folders
 for (i in 1:length(ashr_dgea)) {
@@ -1517,6 +1520,9 @@ for (i in 1:length(pathfindR_outputs_ashr_ETR_vs_ETNR)){
 names(term_gene_graphs_ashr_ETR_vs_ETNR) = names(pathfindR_outputs_ashr_ETR_vs_ETNR)
 names(term_gene_heatmaps_ashr_ETR_vs_ETNR) = names(pathfindR_outputs_ashr_ETR_vs_ETNR)
 names(UpSet_plots_ashr_ETR_vs_ETNR) = names(pathfindR_outputs_ashr_ETR_vs_ETNR)
+
+# Sample specific pathway plots #####
+
 
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
