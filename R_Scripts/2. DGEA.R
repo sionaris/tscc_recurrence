@@ -37,9 +37,13 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
 # in order to determine which interactions term add to the model
 
-
-
-dds = DESeq(dds)
+dds_lrt_3way = DESeq(dds, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
+                       Recurrence:Stage +
+                       Recurrence:Sample.type +
+                       Stage:Sample.type)
+res_lrt_3way = results(dds_lrt_3way) %>% as.data.frame() %>%
+  dplyr::filter(padj < 0.05) %>%
+  dplyr::arrange(padj)
 
 # using pre-existing size factors
 # estimating dispersions
@@ -51,47 +55,194 @@ dds = DESeq(dds)
 # for column names in R. [This is a message, not a warning or an error]
 # final dispersion estimates
 # fitting model and testing
-# > dds = DESeq(dds)
-# using pre-existing size factors
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
+# 43 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
 # Note: levels of factors in the design contain characters other than
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# 50 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 15625 genes
+# -- replacing outliers and refitting for 19567 genes
 # -- DESeq argument 'minReplicatesForReplace' = 7 
 # -- original counts are preserved in counts(dds)
 # estimating dispersions
 # fitting model and testing
-# 35 rows did not converge in beta, labelled in mcols(object)$betaConv. Use larger maxit argument with nbinomWaldTest
+# 27 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
 # Note: levels of factors in the design contain characters other than
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
 
-which(!mcols(dds)$betaConv)
+# Only 40 significant genes. The three-way interaction will be discarded.
+# Testing two-way interactions now with a new full model
+dds_2way = DESeqDataSetFromMatrix(countData = assay(dds),
+                                  colData = coldata,
+                                  design = ~ Recurrence + Stage + Sample.type +
+                                    Recurrence:Sample.type +
+                                    Stage:Sample.type +
+                                    Recurrence:Stage)
 
-# We discard these rows from dds (some of them may end up as DEGs otherwise)
-dds_filt = dds[which(mcols(dds)$betaConv), ]
-resultsNames(dds_filt) # Names of the coefficients
+# Recurrence:Stage checks
+dds_lrt_2way_a = DESeq(dds_2way, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
+                         Recurrence:Sample.type +
+                         Stage:Sample.type)
+res_lrt_2way_a = results(dds_lrt_2way_a) %>% as.data.frame() %>%
+  dplyr::filter(padj < 0.05) %>%
+  dplyr::arrange(padj)
+
+# estimating size factors
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# 2 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# -- replacing outliers and refitting for 8731 genes
+# -- DESeq argument 'minReplicatesForReplace' = 7 
+# -- original counts are preserved in counts(dds)
+# estimating dispersions
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+
+# 2327 significant genes. We keep it.
+
+# Recurrence:Sample.type checks
+dds_lrt_2way_b = DESeq(dds_2way, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
+                         Stage:Sample.type +
+                         Recurrence:Stage)
+res_lrt_2way_b = results(dds_lrt_2way_b) %>% as.data.frame() %>%
+  dplyr::filter(padj < 0.05) %>%
+  dplyr::arrange(padj)
+
+# estimating size factors
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# 2 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# -- replacing outliers and refitting for 8731 genes
+# -- DESeq argument 'minReplicatesForReplace' = 7 
+# -- original counts are preserved in counts(dds)
+# estimating dispersions
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+
+# Only 1 significant gene. We can discard this term
+dds_2way_upd = DESeqDataSetFromMatrix(countData = assay(dds),
+                                      colData = coldata,
+                                      design = ~ Recurrence + Stage + Sample.type +
+                                        Stage:Sample.type +
+                                        Recurrence:Stage)
+
+# Stage:Sample.type checks
+dds_lrt_2way_c = DESeq(dds_2way_upd, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
+                         # Recurrence:Sample.type +
+                         Recurrence:Stage)
+res_lrt_2way_c = results(dds_lrt_2way_c) %>% as.data.frame() %>%
+  dplyr::filter(padj < 0.05) %>%
+  dplyr::arrange(padj)
+
+# estimating size factors
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# -- replacing outliers and refitting for 8812 genes
+# -- DESeq argument 'minReplicatesForReplace' = 7 
+# -- original counts are preserved in counts(dds)
+# estimating dispersions
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+
+# 528 significant genes. We keep it
+
+dds_Wald = DESeq(dds_2way_upd, test = "Wald")
+
+# estimating size factors
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# estimating dispersions
+# gene-wise dispersion estimates
+# mean-dispersion relationship
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# final dispersion estimates
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+# -- replacing outliers and refitting for 8812 genes
+# -- DESeq argument 'minReplicatesForReplace' = 7 
+# -- original counts are preserved in counts(dds)
+# estimating dispersions
+# fitting model and testing
+# Note: levels of factors in the design contain characters other than
+# letters, numbers, '_' and '.'. It is recommended (but not required) to use
+# only letters, numbers, and delimiters '_' or '.', as these are safe characters
+# for column names in R. [This is a message, not a warning or an error]
+
+# which(!mcols(dds_Wald)$betaConv)
+
+# We discard these rows from dds_Wald (some of them may end up as DEGs otherwise)
+dds_Wald_filt = dds_Wald[which(mcols(dds_Wald)$betaConv), ]
+resultsNames(dds_Wald_filt) # Names of the coefficients
 
 # Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
 # Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
 # Stage_Late_vs_Early: Effect of late stage compared to early.
 # Recurrence_Recurrence_vs_No.recurrence: Effect of recurrence compared to no recurrence in normal samples.
-# Sample.typeTumor.StageLate: Additional effect in tumor samples at late stage.
-# Sample.typeTumor.RecurrenceRecurrence: Additional effect of recurrence in tumor samples.
-# StageLate.RecurrenceRecurrence: Additional effect of recurrence in late-stage samples.
-# Sample.typeTumor.StageLate.RecurrenceRecurrence: Additional effect of recurrence in late-stage tumor samples.
+# StageLate.Sample.typeTumor: Additional effect in tumor samples at late stage.
+# RecurrenceRecurrence.StageLate: Additional effect of recurrence in late-stage samples.
 
 # Create contrast list
 contrasts <- list(
@@ -139,7 +290,7 @@ contrasts <- list(
 )
 
 results <- list()
-coefNames <- resultsNames(dds_filt)  # Get the names of the coefficients in the model
+coefNames <- resultsNames(dds_Wald_filt)  # Get the names of the coefficients in the model
 
 for (i in 1:length(contrasts)) {
   contrastNames <- contrasts[[i]][[1]]
@@ -152,7 +303,7 @@ for (i in 1:length(contrasts)) {
   contrastVector[contrastNames] <- contrastValues
   
   # Pass the named numeric vector to the contrast argument
-  results[[i]] <- results(dds_filt, contrast = contrastVector, test = "Wald")
+  results[[i]] <- results(dds_Wald_filt, contrast = contrastVector, test = "Wald")
 }
 names(results) <- paste0("res_", names(contrasts))
 gc()
@@ -180,8 +331,8 @@ metadata(results[[4]])$filterThreshold
 ashr_shrunk_results = list()
 
 for (i in 1:length(results)) {
-  # normal_shrunk_results[[i]] = lfcShrink(dds, contrast = contrasts[[i]], type = "normal")
-  ashr_shrunk_results[[i]] = lfcShrink(dds_filt, res = results[[i]], type = "ashr")
+  # normal_shrunk_results[[i]] = lfcShrink(dds_Wald, contrast = contrasts[[i]], type = "normal")
+  ashr_shrunk_results[[i]] = lfcShrink(dds_Wald_filt, res = results[[i]], type = "ashr")
   # ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
   # ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
   #                                                  "Non-converged", "")
@@ -596,14 +747,14 @@ for (i in 1:length(results)) {
   
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
-  matcount = assay(dds_filt)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds_filt[topDEGs$Gene.Symbol,])))
+  matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
+  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])))
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
-  rownames(DEGsamplePoisDistMatrix) = dds_filt$Patient.ID
+  rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds_filt[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]))
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
@@ -692,14 +843,14 @@ for (i in 1:length(ashr_shrunk_results)) {
   
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
-  matcount = assay(dds_filt)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds_filt[topDEGs$Gene.Symbol,])))
+  matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
+  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])))
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
-  rownames(DEGsamplePoisDistMatrix) = dds_filt$Patient.ID
+  rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds_filt[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]))
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
@@ -782,8 +933,8 @@ gc()
 writeLines(capture.output(sessionInfo()), 
            paste0("Resources_and_environments/DGEA_sessionInfo.txt"))
 
-# Export dds_filt object
-saveRDS(dds_filt, "Resources_and_environments/final_dds.rds")
+# Export dds_Wald_filt object
+saveRDS(dds_Wald_filt, "Resources_and_environments/final_dds.rds")
 
 # Save environment for easy loading for DGEA later
 save.image("Resources_and_environments/DGEA.RData")
