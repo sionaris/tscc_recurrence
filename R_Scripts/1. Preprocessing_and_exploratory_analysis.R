@@ -23,6 +23,8 @@ library(ggrepel)
 library(glmpca)
 library(openxlsx)
 library(PoiClaClu)
+library(mclust)
+library(aricode)
 library(EnhancedVolcano)
 library(genefilter)
 library(grid)
@@ -310,7 +312,7 @@ dev.off()
 rec_samples = Pheno$Patient.ID[Pheno$Recurrence == "Recurrence"]
 norec_samples = Pheno$Patient.ID[Pheno$Recurrence == "No recurrence"]
 
-# Get size factors similarly to TCGA
+# Get size factors
 # Mock sample conditions
 sample_conditions <- data.frame(
   row.names = colnames(counts(dds)),
@@ -416,9 +418,14 @@ annotate_figure(fig, left = textGrob(bquote(bold("sd")), rot = 90, vjust = 1, gp
 dev.off()
 
 # Heatmap of the count matrix - top 50 genes
-select = order(rowMeans(log2.norm.counts.plus1),
+select1 = order(rowMeans(log2.norm.counts.plus1),
                decreasing=TRUE)[1:50]
-df = as.data.frame(colData(dds)[,c("Sample.type", "Stage", "Recurrence")])
+select2 = order(rowMeans(assay(rld)),
+                decreasing=TRUE)[1:50]
+select3 = order(rowMeans(assay(vsd)),
+                decreasing=TRUE)[1:50]
+df = as.data.frame(colData(dds)[,c("Recurrence", "Sample.type", "Stage")]) %>%
+  dplyr::arrange(Recurrence, Sample.type, Stage)
 
 # Annotation colors
 ann_colors = list(
@@ -432,8 +439,8 @@ ann_colors = list(
 tiff("Results/Exploratory analysis/top50_heatmap_log2(norm.counts+1).tiff",
      res = 200, width = 1420, 
      height = 1080, compression = "lzw")
-pheatmap(log2.norm.counts.plus1[select,], cluster_rows=FALSE, show_rownames=FALSE,
-         cluster_cols=FALSE, annotation_col=df, main = "log2(counts + 1)",
+pheatmap(log2.norm.counts.plus1[select1, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=FALSE, annotation_col=df, main = "log2(norm.counts + 1)",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
 
@@ -441,7 +448,7 @@ dev.off()
 tiff("Results/Exploratory analysis/top50_heatmap_rlog.tiff",
      res = 200, width = 1420, 
      height = 1080, compression = "lzw")
-pheatmap(assay(rld)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+pheatmap(assay(rld)[select2, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "rlog",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
@@ -449,7 +456,7 @@ dev.off()
 # vst
 tiff("Results/Exploratory analysis/top50_heatmap_vst.tiff", res = 200, width = 1420, 
      height = 1080, compression = "lzw")
-pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
+pheatmap(assay(vsd)[select3, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "vst",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
@@ -492,6 +499,25 @@ pheatmap(samplePoisDistMatrix,
          annotation_col = df,
          annotation_colors = ann_colors)
 dev.off()
+
+# Check the ARI of the two main clusters
+vst_clust2 = c("COHTC-37", "COHTC-16", "COHTC-10", "COHTN-12",
+               "COHTC-68", "COHTC-61", "COHTC-8")
+vst_clust1 = setdiff(colnames(sampleDistMatrix), vst_clust2)
+vst_clust = c(rep("clust1", length(vst_clust1)), rep("clust2", length(vst_clust2)))
+names(vst_clust) = c(vst_clust1, vst_clust2)
+
+pois_clust2 = c("COHTC-37", "COHTC-16", "COHTC-10", "COHTN-12",
+                "COHTN-13", "COHTC-61", "COHTC-68", "COHTC-8")
+pois_clust1 = setdiff(colnames(sampleDistMatrix), pois_clust2)
+pois_clust = c(rep("clust1", length(pois_clust1)), rep("clust2", length(pois_clust2)))
+names(pois_clust) = c(pois_clust1, pois_clust2)
+
+pois_clust = pois_clust[names(vst_clust)]
+
+# ARI
+ari = adjustedRandIndex(as.factor(vst_clust), as.factor(pois_clust))
+cat("Adjusted Rand Index (ARI):", ari, "\n")
 
 # Dimensionality reduction #####
 # Principal Component Analysis
