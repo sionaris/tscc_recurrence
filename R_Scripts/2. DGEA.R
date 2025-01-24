@@ -35,6 +35,9 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # https://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#time-series-experiments
 # and the RNAseq workflow by Michael Love:
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
+# in order to determine which interactions term add to the model
+
+
 
 dds = DESeq(dds)
 
@@ -136,7 +139,7 @@ contrasts <- list(
 )
 
 results <- list()
-coefNames <- resultsNames(dds_filt)  # Get the names of the coefficients in your model
+coefNames <- resultsNames(dds_filt)  # Get the names of the coefficients in the model
 
 for (i in 1:length(contrasts)) {
   contrastNames <- contrasts[[i]][[1]]

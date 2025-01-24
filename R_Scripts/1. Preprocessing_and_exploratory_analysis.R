@@ -132,7 +132,7 @@ gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = Sample.ID)) +
 samplePoisDistMatrix_pre = as.matrix(PoissonDistance(t(counts(dds_pre)))$dd)
 dimnames(samplePoisDistMatrix_pre) = list(colnames(counts(dds_pre)), colnames(counts(dds_pre)))
 
-mdsPois <- as.data.frame(colData(dds)) %>%
+mdsPois <- as.data.frame(colData(dds_pre)) %>%
   cbind(cmdscale(samplePoisDistMatrix_pre))
 poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = names)) +
   geom_point(size = 0.2, alpha = 0.65) +
@@ -212,11 +212,11 @@ summed_counts = summed_counts[keep.symbols, ]
 design = model.matrix(~ coldata$Sample.type*coldata$Stage*coldata$Recurrence)
 rownames(design) = rownames(coldata)
 
-# We need to filter out uninformative genes
-keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
-
-# This design results in ~4,000 genes less (38339 -> 34049)
-summed_counts = summed_counts[keep.exprs, ]
+# # We need to filter out uninformative genes
+# keep.exprs = names(which(filterByExpr(summed_counts, design = design) == TRUE))
+# 
+# # This design results in ~4,000 genes less (38339 -> 34049)
+# summed_counts = summed_counts[keep.exprs, ]
 
 # Converting to factors
 coldata$Stage = factor(coldata$Stage, levels = c("Early", "Late"),
