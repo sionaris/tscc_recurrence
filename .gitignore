@@ -7,3 +7,4 @@ nextflow/move_files.txt
 nextflow/nf_job.sh.txt
 Resources_and_environments/*.RData
 Reports/*
+kraken/*
