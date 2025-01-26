@@ -250,42 +250,36 @@ contrasts <- list(
   tumor_rec_vs_tumor_no_rec = list(
     contrast = c(
       "Recurrence_Recurrence_vs_No.recurrence",
-      "Sample.typeTumor.RecurrenceRecurrence",
-      "StageLate.RecurrenceRecurrence",
-      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+      "RecurrenceRecurrence.StageLate"
     ),
-    listValues = c(1, 1, 0.5, 0.5)
+    listValues = c(1, 0.5)
   ),
   
   # 2. Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors
   late_tumor_rec_vs_early_tumor_rec = list(
     contrast = c(
       "Stage_Late_vs_Early",
-      "Sample.typeTumor.StageLate",
-      "StageLate.RecurrenceRecurrence",
-      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+      "StageLate.Sample.typeTumor",
+      "RecurrenceRecurrence.StageLate"
     ),
-    listValues = c(1, 1, 1, 1)
+    listValues = c(1, 1, 1)
   ),
   
   # 3. Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
   early_tumor_rec_vs_early_tumor_no_rec = list(
     contrast = c(
-      "Recurrence_Recurrence_vs_No.recurrence",
-      "Sample.typeTumor.RecurrenceRecurrence"
+      "Recurrence_Recurrence_vs_No.recurrence"
     ),
-    listValues = c(1, 1)
+    listValues = c(1)
   ),
   
   # 4. Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
   late_tumor_rec_vs_late_tumor_no_rec = list(
     contrast = c(
       "Recurrence_Recurrence_vs_No.recurrence",
-      "Sample.typeTumor.RecurrenceRecurrence",
-      "StageLate.RecurrenceRecurrence",
-      "Sample.typeTumor.StageLate.RecurrenceRecurrence"
+      "RecurrenceRecurrence.StageLate"
     ),
-    listValues = c(1, 1, 1, 1)
+    listValues = c(1, 1)
   )
 )
 
@@ -310,20 +304,20 @@ gc()
 
 # Independent filtering
 metadata(results[[1]])$filterThreshold
-# 17.44898% of genes do not pass the threshold
-# 1.566959
+# 25.20408% of genes do not pass the threshold
+# 1.207857
 
 metadata(results[[2]])$filterThreshold
-# 25.20408% of genes do not pass the threshold
-# 3.663188
+# 31.02041%% of genes do not pass the threshold
+# 2.470962
 
 metadata(results[[3]])$filterThreshold
-# 25.20408% of genes do not pass the threshold
-# 3.663188
+# 31.02041%% of genes do not pass the threshold
+# 2.470962
 
 metadata(results[[4]])$filterThreshold
 # 25.20408% of genes do not pass the threshold
-# 3.663188
+# 1.207857
 
 # Shrinking logFCs
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
@@ -748,13 +742,13 @@ for (i in 1:length(results)) {
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
   matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])))
+  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps) # to avoid NA values
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
   rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]) + .Machine$double.eps)
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
@@ -844,13 +838,13 @@ for (i in 1:length(ashr_shrunk_results)) {
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
   matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])))
+  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps)
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
   rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   colnames(DEGsamplePoisDistMatrix) = NULL
   
   # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]))
+  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]) + .Machine$double.eps)
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   colnames(DEGgenesPoisDistMatrix) = NULL
