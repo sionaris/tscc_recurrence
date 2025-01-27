@@ -505,7 +505,7 @@ clustered_results_ashr_TR_vs_TNR <- foreach(i = nonzero_res, .packages = c("path
   }
 }
 
-timestamp() # ~0.5 mins
+timestamp() # <0.5 mins
 stopCluster(cl)
 gc()
 
@@ -1067,7 +1067,7 @@ nonzero_res = which(lapply(pathfindR_outputs_ashr_LTR_vs_LTNR, nrow) != 0)
 cl <- makeCluster(length(nonzero_res))
 registerDoParallel(cl)
 
-timestamp()
+at1 = Sys.time()
 clustered_results_ashr_LTR_vs_LTNR <- foreach(i = nonzero_res, .packages = c("pathfindR", "fastcluster")) %dopar% {
   RNGversion("4.2.2")
   set.seed(123)
@@ -1083,7 +1083,8 @@ clustered_results_ashr_LTR_vs_LTNR <- foreach(i = nonzero_res, .packages = c("pa
   }
 }
 
-timestamp() # ~0.5 mins
+at2 = Sys.time() # <0.5 min
+dat2 = at2-at1
 stopCluster(cl)
 gc()
 
@@ -1337,7 +1338,7 @@ nonzero_res = which(lapply(pathfindR_outputs_ashr_ETR_vs_ETNR, nrow) != 0)
 cl <- makeCluster(length(nonzero_res))
 registerDoParallel(cl)
 
-timestamp()
+bt1 = Sys.time()
 clustered_results_ashr_ETR_vs_ETNR <- foreach(i = nonzero_res, .packages = c("pathfindR", "fastcluster")) %dopar% {
   RNGversion("4.2.2")
   set.seed(123)
@@ -1353,7 +1354,8 @@ clustered_results_ashr_ETR_vs_ETNR <- foreach(i = nonzero_res, .packages = c("pa
   }
 }
 
-timestamp() # ~0.5 mins
+bt2 = Sys.time()
+dbt2 = bt2-bt1 # <0.5 mins
 stopCluster(cl)
 gc()
 
@@ -1573,27 +1575,31 @@ for (i in nonzero_res){
   print(UpSet_plots_ashr_ETR_vs_ETNR[[names]])
   dev.off()
 }
-save.image("Resources_and_environments/Pathways.RData")
+
 # Per sample pathway scores #####
+dds = readRDS("Resources_and_environments/final_dds.rds")
 coldata = colData(dds)
 recurrent = coldata$Patient.ID[coldata$Recurrence == "Recurrence"]
 non_recurrent = coldata$Patient.ID[coldata$Recurrence == "No recurrence"]
 z_exprs_gs = readRDS("Resources_and_environments/log2.norm.counts.plus1.rds")
 
 # ashr_TR_vs_TNR #####
-
+nonzero_res = which(lapply(pathfindR_outputs_ashr_TR_vs_TNR, nrow) != 0)
 # Raw output
 raw_score_matrices_ashr_TR_vs_TNR = list()
-for (p in c(1, 3:6)){
-  if (nrow(wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]]) < 10) {
+for (p in nonzero_res){
+  names = names(pathfindR_outputs_ashr_TR_vs_TNR)[p]
+  if (nrow(wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]]) == 0) {
+    next
+  } else if (nrow(wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]]) < 10) {
     rows = 1:nrow(wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]])
   } else {
     rows = c(1:10)
   }
   tiff(paste0(dirs_ashr_TR_vs_TNR[p], "/",
-              names(pathfindR_outputs_ashr_TR_vs_TNR)[p], "_per_sample_pathway_scores.tiff"), 
+              names, "_per_sample_pathway_scores.tiff"), 
        width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_TR_vs_TNR[[p]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]][rows,],
+  raw_score_matrices_ashr_TR_vs_TNR[[names]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[names]][rows,],
                                         exp_mat = z_exprs_gs,
                                         cases = recurrent,
                                         use_description = TRUE, # default FALSE
@@ -1608,16 +1614,19 @@ for (p in c(1, 3:6)){
 
 # Clustered terms
 clustered_score_matrices_ashr_TR_vs_TNR = list()
-for (p in c(1, 3)){
-  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]]$Status == "Representative",]) < 10) {
+for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)){
+  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]]) == 0){
+    next
+  } else if (nrow(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]]$Status == "Representative",]) < 10) {
     rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]]$Status == "Representative",])
   } else {
     rows = c(1:10)
   }
+  names = names(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)[p]
   tiff(paste0(dirs_ashr_TR_vs_TNR[p], "/",
-              names(pathfindR_outputs_ashr_TR_vs_TNR)[p], "_per_sample_pathway_scores_clustered.tiff"), 
+              names, "_per_sample_pathway_scores_clustered.tiff"), 
        width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_TR_vs_TNR[[p]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]]$Status == "Representative",][rows,], 
+  clustered_score_matrices_ashr_TR_vs_TNR[[names]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[names]][wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[names]]$Status == "Representative",][rows,], 
                                               exp_mat = z_exprs_gs,
                                               cases = recurrent,
                                               use_description = TRUE, # default FALSE
@@ -1630,153 +1639,171 @@ for (p in c(1, 3)){
   dev.off()
 }
 
-# ashr_LTR_vs_LTNR #####
-
-# Raw output
-raw_score_matrices_ashr_LTR_vs_LTNR = list()
-for (p in 1:length(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR)){
-  if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]) < 10) {
-    rows = 1:nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]])
-  } else {
-    rows = c(1:10)
-  }
-  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
-              names(pathfindR_outputs_ashr_LTR_vs_LTNR)[p], "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LTR_vs_LTNR[[p]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][rows,],
-                                                         exp_mat = z_exprs_gs,
-                                                         cases = recurrent,
-                                                         use_description = TRUE, # default FALSE
-                                                         label_samples = TRUE, # default = TRUE
-                                                         case_title = "Recurrent",  # default = "Case"
-                                                         control_title = "Non-recurrent", # default = "Control"
-                                                         low = "darkblue", # default = "green"
-                                                         mid = "white", # default = "black"
-                                                         high = "darkred") # default = "red"
-  dev.off()
-}
-
-# Clustered terms
-clustered_score_matrices_ashr_LTR_vs_LTNR = list()
-for (p in c(1:4, 6)){ # issue with singleton in GO-MF
-  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]$Status == "Representative",]) < 10) {
-    rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]$Status == "Representative",])
-  } else {
-    rows = c(1:10)
-  }
-  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
-              names(pathfindR_outputs_ashr_LTR_vs_LTNR)[p], "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LTR_vs_LTNR[[p]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]$Status == "Representative",][rows,], 
-                                                               exp_mat = z_exprs_gs,
-                                                               cases = recurrent,
-                                                               use_description = TRUE, # default FALSE
-                                                               label_samples = TRUE, # default = TRUE
-                                                               case_title = "Recurrent",  # default = "Case"
-                                                               control_title = "Non-recurrent", # default = "Control"
-                                                               low = "darkblue", # default = "green"
-                                                               mid = "white", # default = "black"
-                                                               high = "darkred") # default = "red"
-  dev.off()
-}
-
-# ashr_ETR_vs_ETNR #####
-
-# Raw output
-raw_score_matrices_ashr_ETR_vs_ETNR = list()
-for (p in 1:length(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR)){
-  if (nrow(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]) < 10) {
-    rows = 1:nrow(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]])
-  } else {
-    rows = c(1:10)
-  }
-  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
-              names(pathfindR_outputs_ashr_ETR_vs_ETNR)[p], "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_ETR_vs_ETNR[[p]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][rows,],
-                                                         exp_mat = z_exprs_gs,
-                                                         cases = recurrent,
-                                                         use_description = TRUE, # default FALSE
-                                                         label_samples = TRUE, # default = TRUE
-                                                         case_title = "Recurrent",  # default = "Case"
-                                                         control_title = "Non-recurrent", # default = "Control"
-                                                         low = "darkblue", # default = "green"
-                                                         mid = "white", # default = "black"
-                                                         high = "darkred") # default = "red"
-  dev.off()
-}
-
-# Clustered terms
-clustered_score_matrices_ashr_ETR_vs_ETNR = list()
-for (p in c(1:3)){
-  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]$Status == "Representative",]) < 10) {
-    rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]$Status == "Representative",])
-  } else {
-    rows = c(1:10)
-  }
-  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
-              names(pathfindR_outputs_ashr_ETR_vs_ETNR)[p], "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_ETR_vs_ETNR[[p]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]$Status == "Representative",][rows,], 
-                                                               exp_mat = z_exprs_gs,
-                                                               cases = recurrent,
-                                                               use_description = TRUE, # default FALSE
-                                                               label_samples = TRUE, # default = TRUE
-                                                               case_title = "Recurrent",  # default = "Case"
-                                                               control_title = "Non-recurrent", # default = "Control"
-                                                               low = "darkblue", # default = "green"
-                                                               mid = "white", # default = "black"
-                                                               high = "darkred") # default = "red"
-  dev.off()
-}
-
 # ashr_LTR_vs_ETR #####
-
+nonzero_res = which(lapply(pathfindR_outputs_ashr_LTR_vs_ETR, nrow) != 0)
 # Raw output
 raw_score_matrices_ashr_LTR_vs_ETR = list()
-for (p in 1:length(wrapped_pathfindR_outputs_ashr_LTR_vs_ETR)){
-  if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]) < 10) {
+for (p in nonzero_res){
+  names = names(pathfindR_outputs_ashr_LTR_vs_ETR)[p]
+  if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]) == 0) {
+    next
+  } else if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]) < 10) {
     rows = 1:nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]])
   } else {
     rows = c(1:10)
   }
   tiff(paste0(dirs_ashr_LTR_vs_ETR[p], "/",
-              names(pathfindR_outputs_ashr_LTR_vs_ETR)[p], "_per_sample_pathway_scores.tiff"), 
+              names, "_per_sample_pathway_scores.tiff"), 
        width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LTR_vs_ETR[[p]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]][rows,],
-                                                        exp_mat = z_exprs_gs,
-                                                        cases = recurrent,
-                                                        use_description = TRUE, # default FALSE
-                                                        label_samples = TRUE, # default = TRUE
-                                                        case_title = "Recurrent",  # default = "Case"
-                                                        control_title = "Non-recurrent", # default = "Control"
-                                                        low = "darkblue", # default = "green"
-                                                        mid = "white", # default = "black"
-                                                        high = "darkred") # default = "red"
+  raw_score_matrices_ashr_LTR_vs_ETR[[names]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[names]][rows,],
+                                                            exp_mat = z_exprs_gs,
+                                                            cases = recurrent,
+                                                            use_description = TRUE, # default FALSE
+                                                            label_samples = TRUE, # default = TRUE
+                                                            case_title = "Recurrent",  # default = "Case"
+                                                            control_title = "Non-recurrent", # default = "Control"
+                                                            low = "darkblue", # default = "green"
+                                                            mid = "white", # default = "black"
+                                                            high = "darkred") # default = "red"
   dev.off()
 }
 
 # Clustered terms
 clustered_score_matrices_ashr_LTR_vs_ETR = list()
 for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)){
-  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]$Status == "Representative",]) < 10) {
+  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]) == 0){
+    next
+  } else if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]$Status == "Representative",]) < 10) {
     rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]$Status == "Representative",])
   } else {
     rows = c(1:10)
   }
+  names = names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)[p]
   tiff(paste0(dirs_ashr_LTR_vs_ETR[p], "/",
-              names(pathfindR_outputs_ashr_LTR_vs_ETR)[p], "_per_sample_pathway_scores_clustered.tiff"), 
+              names, "_per_sample_pathway_scores_clustered.tiff"), 
        width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LTR_vs_ETR[[p]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]]$Status == "Representative",][rows,], 
-                                                              exp_mat = z_exprs_gs,
-                                                              cases = recurrent,
-                                                              use_description = TRUE, # default FALSE
-                                                              label_samples = TRUE, # default = TRUE
-                                                              case_title = "Recurrent",  # default = "Case"
-                                                              control_title = "Non-recurrent", # default = "Control"
-                                                              low = "darkblue", # default = "green"
-                                                              mid = "white", # default = "black"
-                                                              high = "darkred") # default = "red"
+  clustered_score_matrices_ashr_LTR_vs_ETR[[names]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[names]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[names]]$Status == "Representative",][rows,], 
+                                                                  exp_mat = z_exprs_gs,
+                                                                  cases = recurrent,
+                                                                  use_description = TRUE, # default FALSE
+                                                                  label_samples = TRUE, # default = TRUE
+                                                                  case_title = "Recurrent",  # default = "Case"
+                                                                  control_title = "Non-recurrent", # default = "Control"
+                                                                  low = "darkblue", # default = "green"
+                                                                  mid = "white", # default = "black"
+                                                                  high = "darkred") # default = "red"
+  dev.off()
+}
+
+# ashr_ETR_vs_ETNR #####
+nonzero_res = which(lapply(pathfindR_outputs_ashr_ETR_vs_ETNR, nrow) != 0)
+# Raw output
+raw_score_matrices_ashr_ETR_vs_ETNR = list()
+for (p in nonzero_res){
+  names = names(pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
+  if (nrow(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]) == 0) {
+    next
+  } else if (nrow(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]) < 10) {
+    rows = 1:nrow(wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]])
+  } else {
+    rows = c(1:10)
+  }
+  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
+              names, "_per_sample_pathway_scores.tiff"), 
+       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
+  raw_score_matrices_ashr_ETR_vs_ETNR[[names]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[names]][rows,],
+                                                             exp_mat = z_exprs_gs,
+                                                             cases = recurrent,
+                                                             use_description = TRUE, # default FALSE
+                                                             label_samples = TRUE, # default = TRUE
+                                                             case_title = "Recurrent",  # default = "Case"
+                                                             control_title = "Non-recurrent", # default = "Control"
+                                                             low = "darkblue", # default = "green"
+                                                             mid = "white", # default = "black"
+                                                             high = "darkred") # default = "red"
+  dev.off()
+}
+
+# Clustered terms
+clustered_score_matrices_ashr_ETR_vs_ETNR = list()
+for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)){
+  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]) == 0){
+    next
+  } else if (nrow(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]$Status == "Representative",]) < 10) {
+    rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]]$Status == "Representative",])
+  } else {
+    rows = c(1:10)
+  }
+  names = names(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
+  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
+              names, "_per_sample_pathway_scores_clustered.tiff"), 
+       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
+  clustered_score_matrices_ashr_ETR_vs_ETNR[[names]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[names]][wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[names]]$Status == "Representative",][rows,], 
+                                                                   exp_mat = z_exprs_gs,
+                                                                   cases = recurrent,
+                                                                   use_description = TRUE, # default FALSE
+                                                                   label_samples = TRUE, # default = TRUE
+                                                                   case_title = "Recurrent",  # default = "Case"
+                                                                   control_title = "Non-recurrent", # default = "Control"
+                                                                   low = "darkblue", # default = "green"
+                                                                   mid = "white", # default = "black"
+                                                                   high = "darkred") # default = "red"
+  dev.off()
+}
+
+# ashr_LTR_vs_LTNR #####
+nonzero_res = which(lapply(pathfindR_outputs_ashr_LTR_vs_LTNR, nrow) != 0)
+# Raw output
+raw_score_matrices_ashr_LTR_vs_LTNR = list()
+for (p in nonzero_res){
+  names = names(pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
+  if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]) == 0) {
+    next
+  } else if (nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]) < 10) {
+    rows = 1:nrow(wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]])
+  } else {
+    rows = c(1:10)
+  }
+  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
+              names, "_per_sample_pathway_scores.tiff"), 
+       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
+  raw_score_matrices_ashr_LTR_vs_LTNR[[names]] = score_terms(enrichment_table = wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[names]][rows,],
+                                                             exp_mat = z_exprs_gs,
+                                                             cases = recurrent,
+                                                             use_description = TRUE, # default FALSE
+                                                             label_samples = TRUE, # default = TRUE
+                                                             case_title = "Recurrent",  # default = "Case"
+                                                             control_title = "Non-recurrent", # default = "Control"
+                                                             low = "darkblue", # default = "green"
+                                                             mid = "white", # default = "black"
+                                                             high = "darkred") # default = "red"
+  dev.off()
+}
+
+# Clustered terms
+clustered_score_matrices_ashr_LTR_vs_LTNR = list()
+for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)){
+  if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]) == 0){
+    next
+  } else if (nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]$Status == "Representative",]) < 10) {
+    rows = 1:nrow(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]]$Status == "Representative",])
+  } else {
+    rows = c(1:10)
+  }
+  names = names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
+  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
+              names, "_per_sample_pathway_scores_clustered.tiff"), 
+       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
+  clustered_score_matrices_ashr_LTR_vs_LTNR[[names]] = score_terms(enrichment_table = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[names]][wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[names]]$Status == "Representative",][rows,], 
+                                                                   exp_mat = z_exprs_gs,
+                                                                   cases = recurrent,
+                                                                   use_description = TRUE, # default FALSE
+                                                                   label_samples = TRUE, # default = TRUE
+                                                                   case_title = "Recurrent",  # default = "Case"
+                                                                   control_title = "Non-recurrent", # default = "Control"
+                                                                   low = "darkblue", # default = "green"
+                                                                   mid = "white", # default = "black"
+                                                                   high = "darkred") # default = "red"
   dev.off()
 }
 
