@@ -1825,8 +1825,8 @@ for (j in 1:length(ora_results)) {
       top10max = raw %>% dplyr::filter(p.adjust < 0.05) %>% 
         dplyr::arrange(p.adjust, desc(GeneRatio)) %>% 
         slice_head(n = 10)
-      colnames(raw)[1] = "Category"
-      raw = raw %>% dplyr::select(Category, Description, GeneRatio, p.adjust, geneID)
+      colnames(top10max)[1] = "Category"
+      top10max = top10max %>% dplyr::select(Category, Description, GeneRatio, p.adjust, geneID)
       top10max$geneID = stringr::str_wrap(gsub("/", ",", top10max$geneID), 
                                           width = 40)
       write.xlsx(top10max, paste0("Results/Pathways/", names(ora_results)[j],
