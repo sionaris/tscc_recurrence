@@ -6,5 +6,7 @@ NF-processed_samples/
 nextflow/move_files.txt
 nextflow/nf_job.sh.txt
 Resources_and_environments/*.RData
-Reports/*
+# Reports/*
 kraken/*
+pathfindR_moveplots.bat
+# R_Scripts/get_pathfindR_png.R
