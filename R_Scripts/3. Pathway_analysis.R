@@ -438,6 +438,7 @@ for (i in 1:length(ashr_dgea)) {
   # Remove garbage
   rm(list=setdiff(ls(), keepers))
 }
+names(ora_results) = names(gsea_results) = names(ashr_dgea)
 
 rm(i); gc()
 
@@ -1806,6 +1807,110 @@ for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)){
                                                                    high = "darkred") # default = "red"
   dev.off()
 }
+
+# Pathway results processing for tabular presentation #####
+# ORA
+ora_sheets_names = c("ORA_GO", "ORA_KEGG", "ORA_WP", "ORA_Reactome",
+                     "ORA_DO", "ORA_NCG", "ORA_DGN")
+ora_names = c("Gene Ontology", "KEGG", "WikiPathways", "Reactome",
+              "Disease Ontology", "Network Cancer Gene (NCG)", "Disease Gene Network (DisGeNET)")
+for (j in 1:length(ora_results)) {
+  for (i in 1:length(ora_names)) {
+    if (ora_names[i] %in% names(ora_results[[j]])) {
+      raw = read.xlsx(paste0("Results/Pathways/", names(ora_results)[j],
+                             "/ORA/ORA_output_", names(ora_results)[j], ".xlsx"), 
+                      sheet = ora_sheets_names[i])
+      raw = tidyr::separate(raw, col = GeneRatio, sep = "/", into = c("num", "den"))
+      raw$GeneRatio = as.numeric(raw$num)/as.numeric(raw$den)
+      top10max = raw %>% dplyr::filter(p.adjust < 0.05) %>% 
+        dplyr::arrange(p.adjust, desc(GeneRatio)) %>% 
+        slice_head(n = 10)
+      colnames(raw)[1] = "Category"
+      raw = raw %>% dplyr::select(Category, Description, GeneRatio, p.adjust, geneID)
+      top10max$geneID = stringr::str_wrap(gsub("/", ",", top10max$geneID), 
+                                          width = 40)
+      write.xlsx(top10max, paste0("Results/Pathways/", names(ora_results)[j],
+                                  "/ORA/top_ORA_output_", names(ora_results)[j], "_",
+                                  names(ora_results[[1]])[i], ".xlsx"),
+                 overwrite =TRUE)
+    } else {
+      next
+    }
+  }
+}
+
+# GSEA
+gsea_sheets_names = c("GSEA_GO", "GSEA_KEGG", "GSEA_WP", "GSEA_Reactome",
+                      "GSEA_DO", "GSEA_NCG", "GSEA_DGN")
+gsea_names = c("Gene Ontology", "KEGG", "WikiPathways", "Reactome",
+               "Disease Ontology", "Network Cancer Gene (NCG)", "Disease Gene Network (DisGeNET)")
+for (j in 1:length(gsea_results)) {
+  for (i in 1:length(gsea_names)) {
+    if (gsea_names[i] %in% names(gsea_results[[j]])) {
+      raw = read.xlsx(paste0("Results/Pathways/", names(gsea_results)[j],
+                             "/GSEA/GSEA_output_", names(gsea_results)[j], ".xlsx"), 
+                      sheet = gsea_sheets_names[i])
+      top10max = raw %>% dplyr::filter(p.adjust < 0.05) %>% 
+        dplyr::arrange(p.adjust, desc(abs(NES))) %>% 
+        slice_head(n = 10)
+      colnames(top10max)[1] = "Category"
+      top10max = top10max %>% dplyr::select(Category, Description, 
+                                  `Normalized Enrichment score` = NES, p.adjust, 
+                                  geneID = core_enrichment)
+      top10max$geneID = stringr::str_wrap(gsub("/", ",", top10max$geneID), 
+                                          width = 40)
+      write.xlsx(top10max, paste0("Results/Pathways/", names(gsea_results)[j],
+                                  "/GSEA/top_GSEA_output_", names(gsea_results)[j], "_",
+                                  names(gsea_results[[1]])[i], ".xlsx"),
+                 overwrite =TRUE)
+    } else {
+      next
+    }
+  }
+}
+
+# pathfindR
+pathfindR_sheets_names = c("Reactome", "BioCarta", "GO-BP", 
+                           "GO-CC", "GO-MF", "KEGG")
+pathfindR_results = list(pathfindR_outputs_ashr_TR_vs_TNR,
+                         pathfindR_outputs_ashr_LTR_vs_ETR,
+                         pathfindR_outputs_ashr_ETR_vs_ETNR,
+                         pathfindR_outputs_ashr_LTR_vs_LTNR)
+names(pathfindR_results) = names(ashr_dgea)
+
+for (j in 1:length(pathfindR_results)) {
+  for (i in 1:length(pathfindR_sheets_names)) {
+    if (nrow(pathfindR_results[[j]][[pathfindR_sheets_names[[i]]]]) > 0) {
+      raw = read.xlsx(paste0("Results/Pathways/", names(pathfindR_results)[j],
+                             "/pathfindR/Comprehensive_pathfindR_output.xlsx"), 
+                      sheet = pathfindR_sheets_names[i])
+      top10max_comprehensive = raw %>% dplyr::filter(lowest_p < 0.05) %>% 
+        # dplyr::arrange(lowest_p, desc(abs(Fold_Enrichment))) %>% 
+        slice_head(n = 100) %>% 
+        dplyr::select(Description = Term_Description, `Fold enrichment` = Fold_Enrichment,
+                      p.adjust = lowest_p, `Up-regulated` = Up_regulated, 
+                      `Down-regulated` = Down_regulated, Status)
+      top10max_representative = raw %>% dplyr::filter(lowest_p < 0.05 & Status == "Representative") %>% 
+        dplyr::arrange(lowest_p, desc(abs(Fold_Enrichment))) %>% 
+        slice_head(n = 10) %>% 
+        dplyr::select(Description = Term_Description, `Fold enrichment` = Fold_Enrichment,
+                      p.adjust = lowest_p, `Up-regulated` = Up_regulated, 
+                      `Down-regulated` = Down_regulated, Status)
+      write.xlsx(top10max_comprehensive, paste0("Results/Pathways/", names(pathfindR_results)[j],
+                                                "/pathfindR/top_Comprehensive_pathfindR_output_",
+                                                pathfindR_sheets_names[i], ".xlsx"),
+                 overwrite =TRUE)
+      write.xlsx(top10max_comprehensive, paste0("Results/Pathways/", names(pathfindR_results)[j],
+                                                "/pathfindR/top_Representative_pathfindR_output_",
+                                                pathfindR_sheets_names[i], ".xlsx"),
+                 overwrite =TRUE)
+    } else {
+      next
+    }
+  }
+}
+
+rm(raw, top10max, top10max_comprehensive, top10max_representative, i, j); gc()
 
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
