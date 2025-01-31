@@ -1831,7 +1831,7 @@ for (j in 1:length(ora_results)) {
                                           width = 40)
       write.xlsx(top10max, paste0("Results/Pathways/", names(ora_results)[j],
                                   "/ORA/top_ORA_output_", names(ora_results)[j], "_",
-                                  names(ora_results[[1]])[i], ".xlsx"),
+                                  ora_names[i], ".xlsx"),
                  overwrite =TRUE)
     } else {
       next
@@ -1855,13 +1855,13 @@ for (j in 1:length(gsea_results)) {
         slice_head(n = 10)
       colnames(top10max)[1] = "Category"
       top10max = top10max %>% dplyr::select(Category, Description, 
-                                  `Normalized Enrichment score` = NES, p.adjust, 
+                                  `Normalized Enrichment Score` = NES, p.adjust, 
                                   geneID = core_enrichment)
       top10max$geneID = stringr::str_wrap(gsub("/", ", ", top10max$geneID), 
                                           width = 40)
       write.xlsx(top10max, paste0("Results/Pathways/", names(gsea_results)[j],
                                   "/GSEA/top_GSEA_output_", names(gsea_results)[j], "_",
-                                  names(gsea_results[[1]])[i], ".xlsx"),
+                                  gsea_names[i], ".xlsx"),
                  overwrite =TRUE)
     } else {
       next
