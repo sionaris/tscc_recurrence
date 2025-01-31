@@ -6,7 +6,7 @@ Matrix products: default
 
 
 locale:
-[1] LC_COLLATE=English_United Kingdom.utf8  LC_CTYPE=English_United Kingdom.utf8   
+[1] LC_COLLATE=English_United Kingdom.utf8  LC_CTYPE=C                             
 [3] LC_MONETARY=English_United Kingdom.utf8 LC_NUMERIC=C                           
 [5] LC_TIME=English_United Kingdom.utf8    
 
