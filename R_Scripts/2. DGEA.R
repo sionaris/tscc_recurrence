@@ -756,7 +756,7 @@ for (i in 1:length(results)) {
   # Log-transformed matrix
   logmat = log2(matcount + 1)
   
-  # The same matrix but order samples by metastatic status and genes by logFC (raw)
+  # The same matrix but order samples by recurrence status and genes by logFC (raw)
   genes_order = topDEGs %>% dplyr::filter(padj < 0.05) %>%
     arrange(log2FoldChange)
   gaps_row = length(which(genes_order$log2FoldChange < 0))
@@ -852,7 +852,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   # Log-transformed matrix
   logmat = log2(matcount + 1)
   
-  # The same matrix but order samples by metastatic status and genes by logFC (raw)
+  # The same matrix but order samples by recurrence status and genes by logFC (raw)
   genes_order = topDEGs %>% dplyr::filter(padj < 0.05) %>%
     arrange(log2FoldChange)
   gaps_row = length(which(genes_order$log2FoldChange < 0))
