@@ -11,7 +11,7 @@
 
 <meta name="author" content="Aris Sionakidis" />
 
-<meta name="date" content="2025-01-31" />
+<meta name="date" content="2025-02-14" />
 
 <title>OSCC RNA-seq analysis</title>
 
@@ -362,7 +362,7 @@ display: none;
 
 <h1 class="title toc-ignore">OSCC RNA-seq analysis</h1>
 <h4 class="author">Aris Sionakidis</h4>
-<h4 class="date">2025-01-31</h4>
+<h4 class="date">2025-02-14</h4>
 <div class="abstract">
 <p class="abstract">Abstract</p>
 <p>A brief presentation of our current work in OSCC RNA-seq analysis.
@@ -1042,27 +1042,48 @@ for (i in 1:length(results)) {
 names(ashr_shrunk_results) = names(results)</code></pre>
 </details>
 <p>This process essentially fits the following model:</p>
-<p><span class="math display">\[
+<span class="math display">\[
 \log\bigl(\mu_j\bigr) \;=\; \beta_0
-\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes})
-\;+\; \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late})
-\;+\; \beta_{\mathrm{Tumor}}\cdot I(\mathrm{Sample.type}=\text{Tumor})
+\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes}) +
+\\
+\;+\; \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late}) + \\
+\;+\; \beta_{\mathrm{Tumor}}\cdot I(\mathrm{Sample.type}=\text{Tumor}) +
+\\
 \;+\; \beta_{\mathrm{RecYes:Late}}\cdot
 \bigl[I(\mathrm{Recurrence}=\text{Yes}) \times
-I(\mathrm{Stage}=\text{Late})\bigr]
+I(\mathrm{Stage}=\text{Late})\bigr] + \\
 \;+\; \beta_{\mathrm{Late:Tumor}}\cdot
 \bigl[I(\mathrm{Stage}=\text{Late}) \times
 I(\mathrm{Sample.type}=\text{Tumor})\bigr].
-\]</span> where: - <span class="math inline">\(\mu_j\)</span> is the
-expected count for sample <span class="math inline">\(j\)</span> - <span class="math inline">\(\beta_0\)</span> is the intercept (reference
-levels: Recurrence=No, Stage=Early, Sample.type=Normal) - <span class="math inline">\(\beta_{\mathrm{RecYes}}\)</span>, <span class="math inline">\(\beta_{\mathrm{Late}}\)</span> and <span class="math inline">\(\beta_{\mathrm{Tumor}}\)</span> are the main
+\]</span> where:
+<ul>
+<li>
+<span class="math inline">\(\mu_j\)</span> is the expected count for
+sample <span class="math inline">\(j\)</span>
+</li>
+<li>
+<span class="math inline">\(\beta_0\)</span> is the intercept (reference
+levels: Recurrence=No, Stage=Early, Sample.type=Normal)
+</li>
+<li>
+<span class="math inline">\(\beta_{\mathrm{RecYes}}\)</span>, <span class="math inline">\(\beta_{\mathrm{Late}}\)</span> and <span class="math inline">\(\beta_{\mathrm{Tumor}}\)</span> are the main
 effects for switching from No → Yes, Early → Late, and Normal → Tumor,
-respectively. - <span class="math inline">\(\beta_{\mathrm{RecYes:Late}}\)</span> is the
+respectively.
+</li>
+<li>
+<span class="math inline">\(\beta_{\mathrm{RecYes:Late}}\)</span> is the
 interaction effect of being both Recurrence=Yes and Stage=Late (relative
-to No/Early) - <span class="math inline">\(\beta_{\mathrm{Late:Tumor}}\)</span> is the
+to No/Early)
+</li>
+<li>
+<span class="math inline">\(\beta_{\mathrm{Late:Tumor}}\)</span> is the
 interaction effect of being both Stage=Late and Sample.type=Tumor
-(relative to Early/Normal) - <span class="math inline">\(I(\cdot)\)</span> is the 0/1 indicator
-function.</p>
+(relative to Early/Normal)
+</li>
+<li>
+<span class="math inline">\(I(\cdot)\)</span> is the 0/1 indicator
+function.
+</li>
 <p>We are interested in the following four comparisons: 1. Recurrent
 Tumors vs. Non-Recurrent Tumors Overall 2. Recurrent Late-Stage Tumors
 vs. Recurrent Early-Stage Tumors 3. Recurrent Early-Stage Tumors
@@ -1071,58 +1092,63 @@ vs. Non-Recurrent Late-Stage Tumors</p>
 <p>To build the contrasts for each comparison, we follow the logic
 below:</p>
 <ol style="list-style-type: decimal">
-<li><b>Recurrent Tumors vs. Non-Recurrent Tumors Overall</b>:
-<ul>
-<li>We compare Tumor samples only (vs Tumor samples only), so we
+<li><p><b>Recurrent Tumors vs. Non-Recurrent Tumors Overall</b>:</p>
+<li>
+<p>We compare Tumor samples only (vs Tumor samples only), so we
 consider: Early Tumor, Rec=Yes vs Early Tumor, Rec=No Late Tumor,
-Rec=Yes vs Late Tumor, Rec=No</li>
-<li>The difference for Early Tumor is: <span class="math display">\[
-\beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - (\beta_0 +
-\beta_{\mathrm{Tumor}}) = \beta_{\mathrm{RecYes}}
-\]</span></li>
-<li>The difference for Late Tumor is: <span class="math display">\[
-\beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} +
+Rec=Yes vs Late Tumor, Rec=No</p>
+</li>
+<li>
+<p>The difference for Early Tumor is: <span class="math display">\[
+  \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - (\beta_0
++ \beta_{\mathrm{Tumor}}) = \beta_{\mathrm{RecYes}}
+  \]</span></p>
+</li>
+<li>
+<p>The difference for Late Tumor is: <span class="math display">\[
+  \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} +
 \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} +
 \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} +
 \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) =
 \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
-\]</span></li>
-</ul>
-Because we have 16 Early-Tumor and 16 Late-Tumor (equal), we average
+  \]</span></p>
+<p>Because we have 16 Early-Tumor and 16 Late-Tumor (equal), we average
 those two differences 50/50: <span class="math display">\[
-\frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} +
+  \frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} +
 \beta_{\mathrm{RecYes:Late}})]}{2} = \beta_{\mathrm{RecYes}} +
 0.5*\beta_{\mathrm{RecYes:Late}}
-\]</span></li>
-<li><b>Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors</b>:
-<ul>
-<li>(Late, Rec=Yes, Tumor) minus (Early, Rec=Yes, Tumor): <span class="math display">\[
+  \]</span></p>
+</li></li>
+<li><p><b>Recurrent Late-Stage Tumors vs. Recurrent Early-Stage
+Tumors</b>:</p>
+<li>
+<p>(Late, Rec=Yes, Tumor) minus (Early, Rec=Yes, Tumor): <span class="math display">\[
 \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} +
 \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} +
 \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{RecYes}} +
 \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{Late}} +
 \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}}
-\]</span></li>
-</ul></li>
-<li><b>Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage
-Tumors</b>:
-<ul>
-<li>(Early, Rec=Yes, Tumor) minus (Early, Rec=No, Tumor): <span class="math display">\[
+\]</span></p>
+</li></li>
+<li><p><b>Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage
+Tumors</b>:</p>
+<li>
+<p>(Early, Rec=Yes, Tumor) minus (Early, Rec=No, Tumor): <span class="math display">\[
 \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} -
 \bigl(\beta_0 + \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{RecYes}}
-\]</span></li>
-</ul></li>
-<li><b>Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage
-Tumors</b>:
-<ul>
-<li>(Late, Rec=Yes, Tumor) minus (Late, Rec=No, Tumor): <span class="math display">\[
+\]</span></p>
+</li></li>
+<li><p><b>Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage
+Tumors</b>:</p>
+<li>
+<p>(Late, Rec=Yes, Tumor) minus (Late, Rec=No, Tumor): <span class="math display">\[
 \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} +
 \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} +
 \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} +
 \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) =
 \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
-\]</span></li>
-</ul></li>
+\]</span></p>
+</li></li>
 </ol>
 <p>By performing the corresponding <b>Wald</b> tests we get the
 <code>logFC</code>’s of interest and we can identify the significant
@@ -2657,7 +2683,7 @@ Tumors</h3>
 <summary>
 Gene Ontology
 </summary>
-<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Top Significant Gene Ontology ORA Results
 </caption>
@@ -3050,7 +3076,7 @@ EZH2, ASXL1, TET2
 <summary>
 Disease Gene Network (DisGeNET)
 </summary>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Top Significant Disease Gene Network (DisGeNET) ORA Results
 </caption>

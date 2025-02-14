@@ -726,19 +726,20 @@ This process essentially fits the following model:
 
 $$
 \log\bigl(\mu_j\bigr) \;=\; \beta_0 
-\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes}) 
-\;+\; \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late}) 
-\;+\; \beta_{\mathrm{Tumor}}\cdot I(\mathrm{Sample.type}=\text{Tumor})
-\;+\; \beta_{\mathrm{RecYes:Late}}\cdot \bigl[I(\mathrm{Recurrence}=\text{Yes}) \times I(\mathrm{Stage}=\text{Late})\bigr]
+\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes}) + \\
+\;+\; \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late}) + \\
+\;+\; \beta_{\mathrm{Tumor}}\cdot I(\mathrm{Sample.type}=\text{Tumor}) + \\
+\;+\; \beta_{\mathrm{RecYes:Late}}\cdot \bigl[I(\mathrm{Recurrence}=\text{Yes}) \times I(\mathrm{Stage}=\text{Late})\bigr] + \\
 \;+\; \beta_{\mathrm{Late:Tumor}}\cdot \bigl[I(\mathrm{Stage}=\text{Late}) \times I(\mathrm{Sample.type}=\text{Tumor})\bigr].
 $$
 where:
- - $\mu_j$ is the  expected count for sample $j$
- - $\beta_0$ is the intercept (reference levels: Recurrence=No, Stage=Early, Sample.type=Normal)
- - $\beta_{\mathrm{RecYes}}$, $\beta_{\mathrm{Late}}$ and $\beta_{\mathrm{Tumor}}$ are the main effects for switching from No &#8594; Yes, Early &#8594; Late, and Normal &#8594; Tumor, respectively.
- - $\beta_{\mathrm{RecYes:Late}}$ is the interaction effect of being both Recurrence=Yes and Stage=Late (relative to No/Early)
- - $\beta_{\mathrm{Late:Tumor}}$ is the interaction effect of being both Stage=Late and Sample.type=Tumor (relative to Early/Normal)
- - $I(\cdot)$ is the 0/1 indicator function.
+<ul>
+ <li>$\mu_j$ is the  expected count for sample $j$</li>
+ <li>$\beta_0$ is the intercept (reference levels: Recurrence=No, Stage=Early, Sample.type=Normal)</li>
+ <li>$\beta_{\mathrm{RecYes}}$, $\beta_{\mathrm{Late}}$ and $\beta_{\mathrm{Tumor}}$ are the main effects for switching from No &#8594; Yes, Early &#8594; Late, and Normal &#8594; Tumor, respectively.</li>
+ <li>$\beta_{\mathrm{RecYes:Late}}$ is the interaction effect of being both Recurrence=Yes and Stage=Late (relative to No/Early)</li>
+ <li>$\beta_{\mathrm{Late:Tumor}}$ is the interaction effect of being both Stage=Late and Sample.type=Tumor (relative to Early/Normal)</li>
+ <li>$I(\cdot)$ is the 0/1 indicator function.</li>
  
 We are interested in the following four comparisons:
   1. Recurrent Tumors vs. Non-Recurrent Tumors Overall
@@ -749,14 +750,14 @@ We are interested in the following four comparisons:
 To build the contrasts for each comparison, we follow the logic below:
 
   1. <b>Recurrent Tumors vs. Non-Recurrent Tumors Overall</b>:
-      - We compare Tumor samples only (vs Tumor samples only), so we consider:
+      <li>We compare Tumor samples only (vs Tumor samples only), so we consider:
         Early Tumor, Rec=Yes  vs Early Tumor, Rec=No
-        Late  Tumor, Rec=Yes  vs Late  Tumor, Rec=No
-      - The difference for Early Tumor is: 
+        Late  Tumor, Rec=Yes  vs Late  Tumor, Rec=No</li>
+      <li>The difference for Early Tumor is: 
       $$
       \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - (\beta_0 + \beta_{\mathrm{Tumor}}) = \beta_{\mathrm{RecYes}}
-      $$
-      - The difference for Late  Tumor is:
+      $$</li>
+      <li>The difference for Late  Tumor is:
       $$
       \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) = \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
       $$
@@ -764,23 +765,23 @@ To build the contrasts for each comparison, we follow the logic below:
       Because we have 16 Early-Tumor and 16 Late-Tumor (equal), we average those two differences 50/50:
       $$
       \frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}})]}{2} = \beta_{\mathrm{RecYes}} + 0.5*\beta_{\mathrm{RecYes:Late}}
-      $$
+      $$</li>
   2. <b>Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors</b>:
-      - (Late, Rec=Yes, Tumor) minus (Early, Rec=Yes, Tumor):
+      <li>(Late, Rec=Yes, Tumor) minus (Early, Rec=Yes, Tumor):
       $$
       \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}}
-      $$
+      $$</li>
       
   3. <b>Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors</b>:
-      - (Early, Rec=Yes, Tumor) minus (Early, Rec=No, Tumor):
+      <li>(Early, Rec=Yes, Tumor) minus (Early, Rec=No, Tumor):
       $$
       \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{RecYes}}
-      $$
+      $$</li>
   4. <b>Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors</b>:
-      - (Late, Rec=Yes, Tumor) minus (Late, Rec=No, Tumor):
+      <li>(Late, Rec=Yes, Tumor) minus (Late, Rec=No, Tumor):
       $$
       \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) = \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
-      $$
+      $$</li>
 
 By performing the corresponding <b>Wald</b> tests we get the ``logFC``'s of interest and we can identify the significant genes. 
 
