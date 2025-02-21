@@ -11,7 +11,7 @@
 
 <meta name="author" content="Aris Sionakidis" />
 
-<meta name="date" content="2025-02-14" />
+<meta name="date" content="2025-02-21" />
 
 <title>OSCC RNA-seq analysis</title>
 
@@ -362,7 +362,7 @@ display: none;
 
 <h1 class="title toc-ignore">OSCC RNA-seq analysis</h1>
 <h4 class="author">Aris Sionakidis</h4>
-<h4 class="date">2025-02-14</h4>
+<h4 class="date">2025-02-21</h4>
 <div class="abstract">
 <p class="abstract">Abstract</p>
 <p>A brief presentation of our current work in OSCC RNA-seq analysis.
@@ -2683,7 +2683,7 @@ Tumors</h3>
 <summary>
 Gene Ontology
 </summary>
-<table class="table" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
 <caption>
 Top Significant Gene Ontology ORA Results
 </caption>
@@ -3276,6 +3276,170 @@ directory in the <a href="https://github.com/sionaris/oscc_seq_rec">GitHub repo<
 there are NO significant results.</b></p>
 <div id="recurrent-tumors-vs.-non-recurrent-tumors-overall-1" class="section level3">
 <h3>Recurrent Tumors vs. Non-Recurrent Tumors Overall</h3>
+<details>
+<summary>
+KEGG
+</summary>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Top Significant KEGG GSEA Results
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Category
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:right;">
+Normalized.Enrichment.Score
+</th>
+<th style="text-align:right;">
+p.adjust
+</th>
+<th style="text-align:left;">
+geneID
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+hsa04910
+</td>
+<td style="text-align:left;width: 200px; ">
+Insulin signaling pathway
+</td>
+<td style="text-align:right;">
+1.510079
+</td>
+<td style="text-align:right;">
+0.0027133
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+hsa04931
+</td>
+<td style="text-align:left;width: 200px; ">
+Insulin resistance
+</td>
+<td style="text-align:right;">
+1.532401
+</td>
+<td style="text-align:right;">
+0.0080984
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2, CREB3L4
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+hsa04152
+</td>
+<td style="text-align:left;width: 200px; ">
+AMPK signaling pathway
+</td>
+<td style="text-align:right;">
+1.483843
+</td>
+<td style="text-align:right;">
+0.0124215
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2, CREB3L4
+</td>
+</tr>
+</tbody>
+</table>
+</details>
+<details>
+<summary>
+WikiPathways
+</summary>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Top Significant WikiPathways GSEA Results
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Category
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:right;">
+Normalized.Enrichment.Score
+</th>
+<th style="text-align:right;">
+p.adjust
+</th>
+<th style="text-align:left;">
+geneID
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+WP500
+</td>
+<td style="text-align:left;width: 200px; ">
+Glycogen synthesis and degradation
+</td>
+<td style="text-align:right;">
+1.668245
+</td>
+<td style="text-align:right;">
+0.0243243
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WP1403
+</td>
+<td style="text-align:left;width: 200px; ">
+AMP activated protein kinase signaling
+</td>
+<td style="text-align:right;">
+1.592404
+</td>
+<td style="text-align:right;">
+0.0243243
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WP481
+</td>
+<td style="text-align:left;width: 200px; ">
+Insulin signaling
+</td>
+<td style="text-align:right;">
+1.544410
+</td>
+<td style="text-align:right;">
+0.0290442
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2, STX4
+</td>
+</tr>
+</tbody>
+</table>
+</details>
 </div>
 <div id="recurrent-late-stage-tumors-vs.-recurrent-early-stage-tumors-1" class="section level3">
 <h3>Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors</h3>
@@ -3478,22 +3642,132 @@ geneID
 <tbody>
 <tr>
 <td style="text-align:left;">
-hsa04820
+hsa04740
 </td>
 <td style="text-align:left;width: 200px; ">
-Cytoskeleton in muscle cells
+Olfactory transduction
 </td>
 <td style="text-align:right;">
--2.031926
+1.625434
 </td>
 <td style="text-align:right;">
-0.015006
+0.0050701
 </td>
 <td style="text-align:left;width: 300px; ">
-FLNC, LDB3, ACTN2, PDLIM3, LAMA2, TNNI1, ATP1A2, FHL3, MYH1, MYL11,
-MYOZ1, MYPN, SGCA, TNNT1, ELN, MYOM3, TRIM63, MYH7, MYL2, TNNT3, TMOD4,
-XIRP2, NRAP, MYOT, NEB, FHL1, MYBPC1, TTN, MYL1, TNNC2, ACTA1, AMPD1,
-MYH2, CKM
+OR2A2, OR4F5, OR11H2, OR5J2, OR10G7, OR11H4, OR2A4, OR5L1, OR52E1,
+OR6F1, OR51G2, OR10AG1, OR2A5, OR2T11, OR7C1, OR6Y1, OR51A4, OR56B2P,
+OR4K2, OR6C2, OR8D1, OR6C74, OR6C75, GUCY2D, OR2D3, OR14J1, OR4D10,
+OR8D4, OR10G4, OR56A4, OR10A6, OR2AT4, OR7A17, OR6N1, OR6A2, NCALD,
+OR6C4, OR5H14, OR9A4, OR6B2, OR7A5, OR52N1, OR11G2, GNG7, OR2J3, OR6J1,
+OR11H6, OR8H3, OR5T2, OR9K2, CNGA4, OR56B1, CNGA3, OR8G3P, OR4K13,
+OR1N2, OR5I1, OR7D2, OR5AS1, OR2T29, OR9G1, OR9Q2, OR2T27
+</td>
+</tr>
+</tbody>
+</table>
+</details>
+<details>
+<summary>
+Reactome
+</summary>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Top Significant Reactome GSEA Results
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Category
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:right;">
+Normalized.Enrichment.Score
+</th>
+<th style="text-align:right;">
+p.adjust
+</th>
+<th style="text-align:left;">
+geneID
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+R-HSA-9752946
+</td>
+<td style="text-align:left;width: 200px; ">
+Expression and translocation of olfactory receptors
+</td>
+<td style="text-align:right;">
+1.664545
+</td>
+<td style="text-align:right;">
+0.0047988
+</td>
+<td style="text-align:left;width: 300px; ">
+OR2A2, OR4F5, OR11H2, OR5J2, OR10G7, OR11H4, OR2A4, OR5L1, OR52E1,
+OR6F1, RTP1, OR51G2, OR10AG1, OR2A5, OR2T11, OR7C1, OR6Y1, OR51A4,
+OR4K2, OR6C2, OR8D1, OR6C74, OR6C75, OR2D3, OR14J1, OR4D10, OR8D4,
+OR10G4, OR56A4, OR10A6, OR2AT4, LHX2, OR7A17, OR6N1, OR6A2, OR6C4,
+OR5H14, OR9A4, OR6B2, OR7A5, OR52N1, OR11G2, OR2J3, OR6J1, OR11H6,
+OR8H3, OR5T2, OR9K2, OR56B1, OR4K13, OR1N2, OR5I1, OR7D2, OR5AS1,
+OR2T29, OR9G1, OR9Q2, OR2T27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+R-HSA-381753
+</td>
+<td style="text-align:left;width: 200px; ">
+Olfactory Signaling Pathway
+</td>
+<td style="text-align:right;">
+1.658197
+</td>
+<td style="text-align:right;">
+0.0047988
+</td>
+<td style="text-align:left;width: 300px; ">
+OR2A2, OR4F5, OR11H2, OR5J2, OR10G7, OR11H4, OR2A4, OR5L1, OR52E1,
+OR6F1, RTP1, OR51G2, OR10AG1, OR2A5, OR2T11, OR7C1, OR6Y1, OR51A4,
+OR4K2, OR6C2, OR8D1, OR6C74, OR6C75, OR2D3, OR14J1, OR4D10, OR8D4,
+OR10G4, OR56A4, OR10A6, OR2AT4, LHX2, OR7A17, OR6N1, OR6A2, OR6C4,
+OR5H14, OR9A4, OR6B2, OR7A5, OR52N1, OR11G2, OR2J3, OR6J1, OR11H6,
+OR8H3, OR5T2, OR9K2, CNGA4, OR56B1, OR4K13, OR1N2, OR5I1, OR7D2, OR5AS1,
+OR2T29, OR9G1, OR9Q2, OR2T27
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+R-HSA-9709957
+</td>
+<td style="text-align:left;width: 200px; ">
+Sensory Perception
+</td>
+<td style="text-align:right;">
+1.539979
+</td>
+<td style="text-align:right;">
+0.0248265
+</td>
+<td style="text-align:left;width: 300px; ">
+OR2A2, OR4F5, OR11H2, OR5J2, OR10G7, OR11H4, OR2A4, OR5L1, OR52E1,
+OR6F1, RTP1, OR51G2, OR10AG1, OR2A5, OR2T11, HSD17B6, OR7C1, OR6Y1,
+CNGA1, RPE65, OR51A4, OR4K2, OR6C2, CALHM1, OR8D1, OR6C74, OR6C75,
+GUCY2D, OR2D3, OR14J1, OR4D10, OR8D4, OR10G4, LRAT, BCO1, GRM1, TMC1,
+OR56A4, OR10A6, OR2AT4, LHX2, OR7A17, OR6N1, GUCY2F, OR6A2, ESPNL,
+OR6C4, OR5H14, AKR1C3, OR9A4, OR6B2, OR7A5, OR52N1, ATP2B2, OR11G2,
+OTOP1, OR2J3, OR6J1, OR11H6, OR8H3, TRPM5, OR5T2, OR9K2, CNGA4, OR56B1,
+CABP1, OR4K13, OR1N2, STRC, OR5I1, PCLO, OR7D2, STX1A, OR5AS1, SYP,
+STRA6, SCN2A, OR2T29, LRRC52, APOE, OR9G1, OR9Q2, OR2T27, SLC17A8,
+OR13G1, GRM4, OR1I1, TAS2R1, OR6B3, OR4D9, LRP12, OR4F17, OR10H2, USH1G,
+AWAT2, OR2M3, OR8G5, OR13C4, OR8H1, MYO3A, USH1C, RGS9BP, AGRN, TAS2R14,
+PJVK, OR4K14, TPRN, ESPN, OTOF, SAG, OR5M3, CAMKMT, OR2L5, OR8J3, LRP2,
+OR1J1, OR8A1, OR52I2, PRKCQ, WHRN, OR56A5, OR5A1, OR6V1, OR4C3, OR8B3,
+OR4F6, RDH10, OR56A1, MYO7A, OR5P2, OR2L3
 </td>
 </tr>
 </tbody>
@@ -3555,6 +3829,102 @@ ELN, MYH7, KLHL41, MYOT, CRYAB, NEB, FHL1, TTN, ACTA1, CASQ1
 Tumors</h3>
 <details>
 <summary>
+WikiPathways
+</summary>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Top Significant WikiPathways GSEA Results
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Category
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:right;">
+Normalized.Enrichment.Score
+</th>
+<th style="text-align:right;">
+p.adjust
+</th>
+<th style="text-align:left;">
+geneID
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+WP2006
+</td>
+<td style="text-align:left;width: 200px; ">
+miR targeted genes in squamous cell
+</td>
+<td style="text-align:right;">
+1.699561
+</td>
+<td style="text-align:right;">
+0.0329252
+</td>
+<td style="text-align:left;width: 300px; ">
+CIAO2A, MPZL1, ATP6V0E1, TRAM1, PDLIM7, CTDSP1, TMED7, ATP2A2, ADAR,
+TGFBR2, GFPT1, FNDC3A, LAMC1, SLC38A1, MTPN, SMAD1, FNDC3B, LAMTOR5,
+GNAI2, NEDD4, TPM3, RHEB, ANP32B, SLC38A2, TMEM43, ARF4, COMMD9, PKM,
+POGLUT3, ARCN1, POM121, CSDE1, TMED10, VEZT, RARS1, NRP1, RAI14, FMNL2,
+SIGMAR1, ANXA2, ATP6V1C1, FBXW11, DNAJB1, YWHAQ, TPM1, GAS2L1, SPCS3,
+HMGA1, TMED2, TUBA1A, TXNRD1, E2F3, GALNT1, TNFRSF10B, PTMA, GYS1,
+PODXL, POLR2C, TMEM59, MET, HSD17B12, PRPF40A, AXL, CPNE8, RTN4, THBS1,
+SEC23A
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WP5382
+</td>
+<td style="text-align:left;width: 200px; ">
+TGFB Smad signaling
+</td>
+<td style="text-align:right;">
+2.210834
+</td>
+<td style="text-align:right;">
+0.0437795
+</td>
+<td style="text-align:left;width: 300px; ">
+SERPINE1, SPARC, POSTN, TGFBR2, YWHAG, WWTR1, SMAD2, SMAD4, TGFBR1,
+TGFBR3, CCN2
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+WP477
+</td>
+<td style="text-align:left;width: 200px; ">
+Cytoplasmic ribosomal proteins
+</td>
+<td style="text-align:right;">
+1.702834
+</td>
+<td style="text-align:right;">
+0.0437795
+</td>
+<td style="text-align:left;width: 300px; ">
+RPL26, RPS25, RPS19, RPL32, RPS6KB1, MRPL19, RPL29, RPL30, RPL35A,
+RPS15A, RPS18, RPS3A, RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52,
+RPL5, RPL18, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15,
+RPS28, RPL13, RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL8, RPL6, RPL35,
+RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28,
+RPL27, RPS17, RPS26, RPS6KA3, RPL34, RPS29, RPS13, RPL3, RPL4, RPL22,
+RPS21, RPS6KA2
+</td>
+</tr>
+</tbody>
+</table>
+</details>
+<details>
+<summary>
 Reactome
 </summary>
 <table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
@@ -3583,173 +3953,237 @@ geneID
 <tbody>
 <tr>
 <td style="text-align:left;">
-R-HSA-8878166
+R-HSA-168273
 </td>
 <td style="text-align:left;width: 200px; ">
-Transcriptional regulation by RUNX2
+Influenza Viral RNA Transcription and Replication
 </td>
 <td style="text-align:right;">
-1.941188
+1.677066
 </td>
 <td style="text-align:right;">
-0.0231847
+0.0036822
 </td>
 <td style="text-align:left;width: 300px; ">
-PSMC3, YES1, PPM1D
+NDC1, RPL26, POLR2A, RPS25, RPS19, RPL32, RPL29, NUP214, RPL30, RPL35A,
+RPS15A, RPS18, RPS3A, RPL37A, IPO5, RPL10, RPS11, RPL21, RPS8, NUP43,
+DNAJC3, RPL9, UBA52, RPL5, RPL18, RPS27L, TPR, RPL19, POM121, RPL37,
+RPL14, NUP153, RPS23, RPL23A, RPL7A, RPL39, RPS15, RPS28, RPL13, RPL15,
+RPS20, RPLP1, GRSF1, RPL13A, NUP155, RPL18A, RPL36AL, RPL8, RPL6, RPL35,
+RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28,
+NUP62, RPL27, RPL22L1, RPS17, POLR2C, POLR2D, RPS26, NUP205, RPL34,
+RPS29, RPS13, RPL3, RPL4, RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-1236975
+R-HSA-72706
 </td>
 <td style="text-align:left;width: 200px; ">
-Antigen processing-Cross presentation
+GTP hydrolysis and joining of the 60S ribosomal subunit
 </td>
 <td style="text-align:right;">
-1.923476
+1.685380
 </td>
 <td style="text-align:right;">
-0.0231847
+0.0038394
 </td>
 <td style="text-align:left;width: 300px; ">
-PSMC3, BTK, CTSV
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, EIF3L,
+RPS3A, RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18,
+EIF3E, RPS27L, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15,
+RPS28, RPL13, RPL15, RPS20, RPLP1, RPL13A, EIF4E, RPL18A, RPL36AL, EIF5,
+RPL8, RPL6, RPL35, RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, EIF1AX,
+RPL7, EIF4B, RPL11, EIF2S3, RPL12, RPL28, EIF3G, RPL27, EIF3I, RPL22L1,
+RPS17, EIF4A2, EIF3A, RPS26, EIF3J, RPL34, RPS29, RPS13, RPL3, RPL4,
+RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-212165
+R-HSA-1799339
 </td>
 <td style="text-align:left;width: 200px; ">
-Epigenetic regulation of gene expression
+SRP-dependent cotranslational protein targeting to membrane
 </td>
 <td style="text-align:right;">
-2.037385
+1.665867
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0038394
 </td>
 <td style="text-align:left;width: 300px; ">
-MBD3, DNMT3B, EZH2, UHRF1, H3C6
+RPL26, SPCS2, TRAM1, SEC61A2, RPS25, RPS19, RPL32, RPL29, SRP9, RPL30,
+RPL35A, RPS15A, RPS18, RPS3A, SSR3, RPL37A, RPL10, RPS11, RPL21, RPS8,
+SRP54, RPL9, UBA52, RPL5, RPL18, RPS27L, RPL19, RPL37, RPL14, RPS23,
+RPL23A, RPL7A, RPL39, RPS15, RPS28, RPL13, RPL15, RPS20, RPLP1, SSR1,
+RPL13A, RPL18A, RPL36AL, RPL8, RPL6, RPL35, RPS27A, RPL41, RPSA, RPL3L,
+SPCS3, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28, DDOST, SEC61B, RPL27,
+RPL22L1, SSR2, RPS17, SPCS1, SEC61A1, RPS26, SEC61G, RPL34, RPS29,
+RPS13, SSR4, RPL3, RPL4, RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-3247509
+R-HSA-156827
 </td>
 <td style="text-align:left;width: 200px; ">
-Chromatin modifying enzymes
+L13a-mediated translational silencing of Ceruloplasmin expression
 </td>
 <td style="text-align:right;">
-1.887626
+1.708812
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0064775
 </td>
 <td style="text-align:left;width: 300px; ">
-MBD3, DOT1L, EZH2, H3C6
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, EIF3L,
+RPS3A, RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18,
+EIF3E, RPS27L, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15,
+RPS28, RPL13, RPL15, RPS20, RPLP1, RPL13A, EIF4E, RPL18A, RPL36AL, RPL8,
+RPL6, RPL35, RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, EIF1AX, PABPC1,
+RPL7, EIF4B, RPL11, EIF2S3, RPL12, RPL28, EIF3G, RPL27, EIF3I, RPL22L1,
+RPS17, EIF4A2, EIF3A, RPS26, EIF3J, RPL34, RPS29, RPS13, RPL3, RPL4,
+RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-4839726
+R-HSA-192823
 </td>
 <td style="text-align:left;width: 200px; ">
-Chromatin organization
+Viral mRNA Translation
 </td>
 <td style="text-align:right;">
-1.887626
+1.905226
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0130961
 </td>
 <td style="text-align:left;width: 300px; ">
-MBD3, DOT1L, EZH2, H3C6
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, RPS3A,
+RPL37A, RPL10, RPS11, RPL21, RPS8, DNAJC3, RPL9, UBA52, RPL5, RPL18,
+RPS27L, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15, RPS28,
+RPL13, RPL15, RPS20, RPLP1, GRSF1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6,
+RPL35, RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12,
+RPL28, RPL27, RPL22L1, RPS17, RPS26, RPL34, RPS29, RPS13, RPL3, RPL4,
+RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-9006934
+R-HSA-72689
 </td>
 <td style="text-align:left;width: 200px; ">
-Signaling by Receptor Tyrosine Kinases
+Formation of a pool of free 40S subunits
 </td>
 <td style="text-align:right;">
-1.881986
+1.881725
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0130961
 </td>
 <td style="text-align:left;width: 300px; ">
-LAMC2, ATF1, YES1, PRKCB, BCAR1, PTK2B, LAMA1, LYL1, COL11A2, NRG4, LTK,
-VAV1, TLR9, FGF23, COL6A5, GABRG2
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, EIF3L,
+RPS3A, RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18,
+EIF3E, RPS27L, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15,
+RPS28, RPL13, RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6,
+RPL35, RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, EIF1AX, RPL7, RPL11,
+RPL12, RPL28, EIF3G, RPL27, EIF3I, RPL22L1, RPS17, EIF3A, RPS26, EIF3J,
+RPL34, RPS29, RPS13, RPL3, RPL4, RPL22, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-6811442
+R-HSA-975956
 </td>
 <td style="text-align:left;width: 200px; ">
-Intra-Golgi and retrograde Golgi-to-ER traffic
+Nonsense Mediated Decay (NMD) independent of the Exon Junction Complex
+(EJC)
 </td>
 <td style="text-align:right;">
-1.879662
+1.844199
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0130961
 </td>
 <td style="text-align:left;width: 300px; ">
-KIF21B, NAA38, KIFC1, KIF19
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, RPS3A,
+RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, NCBP2, UBA52, RPL5, RPL18,
+RPS27L, NCBP1, RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15,
+RPS28, RPL13, RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6,
+RPL35, RPS27A, RPL41, RPSA, RPL3L, RPS4X, RPS2, PABPC1, RPL7, RPL11,
+RPL12, RPL28, RPL27, RPL22L1, RPS17, RPS26, RPL34, RPS29, RPS13, RPL3,
+RPL4, RPL22, GSPT1, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-983231
+R-HSA-72764
 </td>
 <td style="text-align:left;width: 200px; ">
-Factors involved in megakaryocyte development and platelet production
+Eukaryotic Translation Termination
 </td>
 <td style="text-align:right;">
-1.879662
+1.839505
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0130961
 </td>
 <td style="text-align:left;width: 300px; ">
-KIF21B, KIFC1, H3C6, KIF19
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, RPS3A,
+RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18, RPS27L,
+RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15, RPS28, RPL13,
+RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6, RPL35, RPS27A,
+RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28, RPL27,
+RPL22L1, RPS17, RPS26, TRMT112, RPL34, RPS29, RPS13, RPL3, RPL4, RPL22,
+GSPT1, RPS21
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-4086400
+R-HSA-156902
 </td>
 <td style="text-align:left;width: 200px; ">
-PCP/CE pathway
+Peptide chain elongation
 </td>
 <td style="text-align:right;">
-1.831376
+1.879489
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0149193
 </td>
 <td style="text-align:left;width: 300px; ">
-PSMC3, PRKCB, WNT4
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, RPS3A,
+RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18, RPS27L,
+RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15, RPS28, RPL13,
+RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6, RPL35, RPS27A,
+RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28, RPL27,
+RPL22L1, RPS17, RPS26, RPL34, RPS29, RPS13, RPL3, RPL4, RPL22, RPS21,
+EEF1A1
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-R-HSA-166058
+R-HSA-156842
 </td>
 <td style="text-align:left;width: 200px; ">
-MyD88:MAL(TIRAP) cascade initiated on plasma membrane
+Eukaryotic Translation Elongation
 </td>
 <td style="text-align:right;">
-1.799495
+1.818889
 </td>
 <td style="text-align:right;">
-0.0401145
+0.0149193
 </td>
 <td style="text-align:left;width: 300px; ">
-ATF1, BTK, NOD2
+RPL26, RPS25, RPS19, RPL32, RPL29, RPL30, RPL35A, RPS15A, RPS18, RPS3A,
+RPL37A, RPL10, RPS11, RPL21, RPS8, RPL9, UBA52, RPL5, RPL18, RPS27L,
+RPL19, RPL37, RPL14, RPS23, RPL23A, RPL7A, RPL39, RPS15, RPS28, RPL13,
+RPL15, RPS20, RPLP1, RPL13A, RPL18A, RPL36AL, RPL8, RPL6, RPL35, RPS27A,
+RPL41, RPSA, RPL3L, RPS4X, RPS2, RPL7, RPL11, RPL12, RPL28, RPL27,
+RPL22L1, RPS17, RPS26, EEF1B2, RPL34, EEF1G, RPS29, RPS13, RPL3, RPL4,
+RPL22, RPS21, EEF1A1
 </td>
 </tr>
 </tbody>
@@ -3857,6 +4291,54 @@ BRCA2, SLC19A1, DNMT3B, PHRF1, COL11A2, UHRF1
 </div>
 <div id="recurrent-late-stage-tumors-vs.-non-recurrent-late-stage-tumors-1" class="section level3">
 <h3>Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors</h3>
+<details>
+<summary>
+Reactome
+</summary>
+<table class="table" style="color: black; width: auto !important; margin-left: auto; margin-right: auto;">
+<caption>
+Top Significant Reactome GSEA Results
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;">
+Category
+</th>
+<th style="text-align:left;">
+Description
+</th>
+<th style="text-align:right;">
+Normalized.Enrichment.Score
+</th>
+<th style="text-align:right;">
+p.adjust
+</th>
+<th style="text-align:left;">
+geneID
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+R-HSA-3878781
+</td>
+<td style="text-align:left;width: 200px; ">
+Glycogen storage disease type IV (GBE1)
+</td>
+<td style="text-align:right;">
+1.505432
+</td>
+<td style="text-align:right;">
+0.0084929
+</td>
+<td style="text-align:left;width: 300px; ">
+GYS2
+</td>
+</tr>
+</tbody>
+</table>
+</details>
 </div>
 </div>
 <div id="active-subnetwork-enrichment" class="section level2">
