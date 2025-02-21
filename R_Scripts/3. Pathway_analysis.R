@@ -85,9 +85,22 @@ for (i in 1:length(ashr_dgea)) {
   # Define the cutoff for significant genes
   sig_genes = ashr_dgea[[i]]$padj < 0.05
   
-  # Extract the log2 fold changes and gene names of the significant genes
-  log2fc = ashr_dgea[[i]]$log2FoldChange[sig_genes]
-  genes = ashr_dgea[[i]]$Gene.Symbol[sig_genes]
+  # Extract the log2 fold changes and gene names of the significant genes for ORA
+  sig_log2fc = ashr_dgea[[i]]$log2FoldChange[sig_genes]
+  sig_ora_genes = ashr_dgea[[i]]$Gene.Symbol[sig_genes]
+  sig_gene_list = sig_log2fc
+  names(sig_gene_list) = sig_ora_genes
+  rm(sig_log2fc, sig_ora_genes)
+  sig_gene_list = sort(sig_gene_list, decreasing = TRUE) # symbols
+  sig_gene_list_conv = suppressWarnings(bitr(names(sig_gene_list), fromType = "SYMBOL",
+                                             toType = "ENTREZID", OrgDb = org.Hs.eg.db))
+  sig_gene_list_entrez = sig_gene_list
+  names(sig_gene_list_entrez) = as.character(sig_gene_list_conv$ENTREZID)
+  sig_gene_list_entrez = sort(sig_gene_list_entrez, decreasing = TRUE) # Entrez ids
+  
+  # Extract log2 fold changes for GSEA (all genes)
+  log2fc = ashr_dgea[[i]]$log2FoldChange
+  genes = ashr_dgea[[i]]$Gene.Symbol
   gene_list = log2fc
   names(gene_list) = genes
   rm(log2fc, genes)
@@ -266,7 +279,7 @@ for (i in 1:length(ashr_dgea)) {
   ora_output = list()
   
   # GO
-  oraGO = suppressWarnings(enrichGO(gene = names(gene_list),
+  oraGO = suppressWarnings(enrichGO(gene = names(sig_gene_list),
                                     ont = "ALL",
                                     universe = ashr_dgea[[i]]$Gene.Symbol,
                                     OrgDb = "org.Hs.eg.db",
@@ -289,7 +302,7 @@ for (i in 1:length(ashr_dgea)) {
   }
   
   # KEGG
-  oraKEGG = suppressWarnings(enrichKEGG(gene = names(gene_list_entrez),
+  oraKEGG = suppressWarnings(enrichKEGG(gene = names(sig_gene_list_entrez),
                                         universe = entrez_universe,
                                         organism = "hsa",
                                         keyType = "ncbi-geneid",
@@ -311,7 +324,7 @@ for (i in 1:length(ashr_dgea)) {
   }
   
   # WikiPathways
-  oraWP = suppressWarnings(enrichWP(gene = names(gene_list_entrez),
+  oraWP = suppressWarnings(enrichWP(gene = names(sig_gene_list_entrez),
                                     universe = entrez_universe,
                                     organism = "Homo sapiens",
                                     pvalueCutoff = 0.1,
@@ -332,7 +345,7 @@ for (i in 1:length(ashr_dgea)) {
   }
   
   # Reactome
-  oraReactome = suppressWarnings(enrichPathway(gene = names(gene_list_entrez),
+  oraReactome = suppressWarnings(enrichPathway(gene = names(sig_gene_list_entrez),
                                                universe = entrez_universe,
                                                organism = "human",
                                                pvalueCutoff = 0.1,
@@ -355,7 +368,7 @@ for (i in 1:length(ashr_dgea)) {
   }
   
   # DO
-  oraDO = suppressWarnings(DOSE::enrichDO(gene = names(gene_list_entrez),
+  oraDO = suppressWarnings(DOSE::enrichDO(gene = names(sig_gene_list_entrez),
                         universe = entrez_universe,
                         pvalueCutoff = 0.1,
                         qvalueCutoff = 0.2,
@@ -377,7 +390,7 @@ for (i in 1:length(ashr_dgea)) {
   }
 
   # DO: NCG
-  oraNCG = suppressWarnings(DOSE::enrichNCG(gene = names(gene_list_entrez),
+  oraNCG = suppressWarnings(DOSE::enrichNCG(gene = names(sig_gene_list_entrez),
                           universe = entrez_universe,
                           pvalueCutoff = 0.1,
                           qvalueCutoff = 0.2,
@@ -399,7 +412,7 @@ for (i in 1:length(ashr_dgea)) {
   }
   
   # DO: DGN
-  oraDGN = suppressWarnings(DOSE::enrichDGN(gene = names(gene_list_entrez),
+  oraDGN = suppressWarnings(DOSE::enrichDGN(gene = names(sig_gene_list_entrez),
                           universe = entrez_universe,
                           pvalueCutoff = 0.1,
                           qvalueCutoff = 0.2,
