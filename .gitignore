@@ -9,4 +9,8 @@ Resources_and_environments/*.RData
 # Reports/*
 kraken/*
 pathfindR_moveplots.bat
+nameNode.sqlite
+names.dmp
+nodes.dmp
+taxa_bar_chart.png
 # R_Scripts/get_pathfindR_png.R
