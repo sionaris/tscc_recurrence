@@ -812,9 +812,11 @@ The <b>x</b>-axis shows the calculated ``logFC`` of each gene and the <b>y</b>-a
 ![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_early_tumor_rec_vs_early_tumor_no_rec.png")`)
 ![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_late_tumor_rec_vs_late_tumor_no_rec.png")`)
 
-## Post-DGEA heatmaps
-Below there are four heatmaps, one for each comparison, where the samples were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated). No obvious patterns are seen.
+## Full Post-DGEA heatmaps
+Below there are eight heatmaps (four pairs), one pair for each comparison, where the samples were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest.
 
+### Clustered
+<details><summary><b>Expand</b></summary>
 ![](`r paste0(getwd(),"/png_dgea/res_tumor_rec_vs_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
 
 ![](`r paste0(getwd(),"/png_dgea/res_early_tumor_rec_vs_early_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
@@ -822,6 +824,39 @@ Below there are four heatmaps, one for each comparison, where the samples were c
 ![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_early_tumor_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
 
 ![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_late_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
+</details>
+
+### Ordered
+<details><summary><b>Expand</b></summary>
+![](`r paste0(getwd(),"/png_dgea/res_tumor_rec_vs_tumor_no_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/res_early_tumor_rec_vs_early_tumor_no_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_early_tumor_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_late_tumor_no_rec_DEG_samples_ordered.png")`)
+</details>
+
+## Filtered Post-DGEA heatmaps
+Below there are eight heatmaps (four pairs), one pair for each comparison, where the <b>filtered samples of interest</b> were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest. <b>The distances used for the clustering had previously been calculated on the full dataset; NOT just these samples</b>.
+
+### Clustered
+![](`r paste0(getwd(),"/png_dgea/filtered_res_tumor_rec_vs_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_early_tumor_rec_vs_early_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_early_tumor_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_late_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
+
+### Ordered
+![](`r paste0(getwd(),"/png_dgea/filtered_res_tumor_rec_vs_tumor_no_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_early_tumor_rec_vs_early_tumor_no_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_early_tumor_rec_DEG_samples_ordered.png")`)
+
+![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_late_tumor_no_rec_DEG_samples_ordered.png")`)
 
 # Pathways
 ## Over-representation analysis (ORA)
