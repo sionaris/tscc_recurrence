@@ -727,6 +727,20 @@ pheatmap(matvar, annotation_col = anno,
          cluster_rows = FALSE)
 dev.off()
 
+# Filtered cohorts for filtered heatmaps
+filtered_samples1 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor"]
+filtered_samples2 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
+                                       Pheno$Recurrence == "Recurrence"]
+filtered_samples3 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
+                                       Pheno$Stage == "Early"]
+filtered_samples4 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
+                                       Pheno$Stage == "Late"]
+filtered_samples = list(filtered_samples1, filtered_samples2,
+                        filtered_samples3, filtered_samples4)
+names(filtered_samples) = names(ashr_shrunk_results)
+rm(filtered_samples1, filtered_samples2, filtered_samples3, filtered_samples4); gc()
+columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence")
+
 # Heatmaps for raw LFCs
 for (i in 1:length(results)) {
   # Construct the data frame
@@ -745,13 +759,13 @@ for (i in 1:length(results)) {
   DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps) # to avoid NA values
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
   rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
-  colnames(DEGsamplePoisDistMatrix) = NULL
+  colnames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   
   # Same for genes
   DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]) + .Machine$double.eps)
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
-  colnames(DEGgenesPoisDistMatrix) = NULL
+  colnames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   
   # Log-transformed matrix
   logmat = log2(matcount + 1)
@@ -787,14 +801,13 @@ for (i in 1:length(results)) {
            cutree_cols = 2,
            cutree_rows = 2,
            fontsize = 8,
-           fontsize_row = 8,
+           fontsize_row = 4,
            fontsize_col = 6,
            main = paste0(names(results)[i], 
                          " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
-  
   
   # Ordered genes and samples
   tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
@@ -819,10 +832,65 @@ for (i in 1:length(results)) {
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
+  
+  # Filtered versions
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
+              names(results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
+       res = 700, width = 7260, 
+       height = 5760, compression = "lzw")
+  pheatmap(logmat_znorm[, filtered_samples[[i]]], annotation_col = anno,
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           clustering_distance_rows = DEGpoisd_genes$dd,
+           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filtered_samples[[i]], filtered_samples[[i]]]),
+           col = colors2,
+           cutree_cols = 2,
+           cutree_rows = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           main = paste0(names(results)[i], 
+                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+  
+  # Ordered genes and samples
+  column_of_interest = columns_of_interest[i]
+  indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
+  arrangement = Pheno[Pheno$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
+  gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
+  gaps_col = gaps_col[-length(gaps_col)]
+  new_indices = arrangement$Patient.ID
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
+              names(results)[i], "_DEG_samples_ordered.tiff"),
+       res = 700, width = 7260, 
+       height = 5760, compression = "lzw")
+  pheatmap(logmat_ordered_znorm[, new_indices], 
+           annotation_col = anno[new_indices, ],
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           cluster_rows = FALSE,
+           cluster_cols = FALSE,
+           col = colors2,
+           gaps_row = gaps_row,
+           gaps_col = gaps_col,
+           cutree_cols = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           border_color = "grey60",
+           main = paste0(names(results)[i], 
+                         " - DEGs vs. samples heatmap (ordered)"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
 }
 rm(genes, i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
    DEGpoisd, DEGpoisd_genes, DEGsamplePoisDistMatrix, logmat, logmat_ordered_znorm,
-   logmat_znorm, sample_order, genes_order, gaps_col)
+   logmat_znorm, sample_order, genes_order, gaps_col, indices, arrangement,
+   new_indices)
 
 # Heatmaps for ashr-shrunk LFCs
 for (i in 1:length(ashr_shrunk_results)) {
@@ -841,13 +909,13 @@ for (i in 1:length(ashr_shrunk_results)) {
   DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps)
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
   rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
-  colnames(DEGsamplePoisDistMatrix) = NULL
+  colnames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
   
   # Same for genes
   DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]) + .Machine$double.eps)
   DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
   rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
-  colnames(DEGgenesPoisDistMatrix) = NULL
+  colnames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
   
   # Log-transformed matrix
   logmat = log2(matcount + 1)
@@ -915,11 +983,65 @@ for (i in 1:length(ashr_shrunk_results)) {
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
+  
+  # Filtered versions
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
+              names(ashr_shrunk_results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
+       res = 700, width = 7260, 
+       height = 5760, compression = "lzw")
+  pheatmap(logmat_znorm[, filtered_samples[[i]]], annotation_col = anno,
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           clustering_distance_rows = DEGpoisd_genes$dd,
+           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filtered_samples[[i]], filtered_samples[[i]]]),
+           col = colors2,
+           cutree_cols = 2,
+           cutree_rows = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           main = paste0(names(ashr_shrunk_results)[i], 
+                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+  
+  # Ordered genes and samples
+  column_of_interest = columns_of_interest[i]
+  indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
+  arrangement = Pheno[Pheno$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
+  gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
+  gaps_col = gaps_col[-length(gaps_col)]
+  new_indices = arrangement$Patient.ID
+  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
+              names(results)[i], "_DEG_samples_ordered.tiff"),
+       res = 700, width = 7260, 
+       height = 5760, compression = "lzw")
+  pheatmap(logmat_ordered_znorm[, new_indices], 
+           annotation_col = anno[new_indices, ],
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           cluster_rows = FALSE,
+           cluster_cols = FALSE,
+           col = colors2,
+           gaps_row = gaps_row,
+           gaps_col = gaps_col,
+           cutree_cols = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           border_color = "grey60",
+           main = paste0(names(results)[i], 
+                         " - DEGs vs. samples heatmap (ordered)"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
 }
-
 rm(genes, i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
    DEGpoisd, DEGpoisd_genes, DEGsamplePoisDistMatrix, logmat, logmat_ordered_znorm,
-   logmat_znorm, sample_order, genes_order, gaps_col)
+   logmat_znorm, sample_order, genes_order, gaps_col, indices, arrangement,
+   new_indices)
 
 gc()
 
