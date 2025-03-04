@@ -1913,7 +1913,7 @@ for (j in 1:length(pathfindR_results)) {
                                                 "/pathfindR/top_Comprehensive_pathfindR_output_",
                                                 pathfindR_sheets_names[i], ".xlsx"),
                  overwrite =TRUE)
-      write.xlsx(top10max_comprehensive, paste0("Results/Pathways/", names(pathfindR_results)[j],
+      write.xlsx(top10max_representative, paste0("Results/Pathways/", names(pathfindR_results)[j],
                                                 "/pathfindR/top_Representative_pathfindR_output_",
                                                 pathfindR_sheets_names[i], ".xlsx"),
                  overwrite =TRUE)
@@ -1923,7 +1923,7 @@ for (j in 1:length(pathfindR_results)) {
   }
 }
 
-rm(raw, top10max, top10max_comprehensive, top10max_representative, i, j); gc()
+rm(raw, top10max_comprehensive, top10max_representative, i, j); gc()
 
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
