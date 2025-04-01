@@ -35,13 +35,22 @@ load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 # https://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#time-series-experiments
 # and the RNAseq workflow by Michael Love:
 # http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
-# in order to determine which interactions term add to the model
+# in order to determine whether to add interaction terms in the model
 
-dds_lrt_3way = DESeq(dds, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                       Recurrence:Stage +
-                       Recurrence:Sample.type +
-                       Stage:Sample.type)
-res_lrt_3way = results(dds_lrt_3way) %>% as.data.frame() %>%
+# Remove outliers from dds
+outliers = c("COHTN-12", "COHTN-13", "COHTC-37")
+dds = dds[, setdiff(colnames(dds), outliers)]
+dds <- estimateSizeFactors(dds)
+
+# By removing the outliers we no longer have early normal samples and the original 
+# design is no longer full rank. We change the design (exclude the Stage:Sample.type 
+# interaction)
+design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage +
+  Recurrence:Sample.type
+
+dds_lrt = DESeq(dds, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
+                  Recurrence:Stage)
+res_lrt = results(dds_lrt) %>% as.data.frame() %>%
   dplyr::filter(padj < 0.05) %>%
   dplyr::arrange(padj)
 
@@ -55,127 +64,24 @@ res_lrt_3way = results(dds_lrt_3way) %>% as.data.frame() %>%
 # for column names in R. [This is a message, not a warning or an error]
 # final dispersion estimates
 # fitting model and testing
-# 43 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
 # Note: levels of factors in the design contain characters other than
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 19567 genes
+# -- replacing outliers and refitting for 6139 genes
 # -- DESeq argument 'minReplicatesForReplace' = 7 
 # -- original counts are preserved in counts(dds)
 # estimating dispersions
 # fitting model and testing
-# 27 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
 
-# Only 40 significant genes. The three-way interaction will be discarded.
-# Testing two-way interactions now with a new full model
-dds_2way = DESeqDataSetFromMatrix(countData = assay(dds),
-                                  colData = coldata,
-                                  design = ~ Recurrence + Stage + Sample.type +
-                                    Recurrence:Sample.type +
-                                    Stage:Sample.type +
-                                    Recurrence:Stage)
+# Only 4 significant genes. The term is removed. We keep the recurrence:stage
+# interaction because we are interested in it.
 
-# Recurrence:Stage checks
-dds_lrt_2way_a = DESeq(dds_2way, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                         Recurrence:Sample.type +
-                         Stage:Sample.type)
-res_lrt_2way_a = results(dds_lrt_2way_a) %>% as.data.frame() %>%
-  dplyr::filter(padj < 0.05) %>%
-  dplyr::arrange(padj)
+# Update final design
+design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage
+dds_Wald = DESeq(dds, test = "Wald")
 
-# estimating size factors
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# 2 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 8731 genes
-# -- DESeq argument 'minReplicatesForReplace' = 7 
-# -- original counts are preserved in counts(dds)
-# estimating dispersions
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-
-# 2327 significant genes. We keep it.
-
-# Recurrence:Sample.type checks
-dds_lrt_2way_b = DESeq(dds_2way, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                         Stage:Sample.type +
-                         Recurrence:Stage)
-res_lrt_2way_b = results(dds_lrt_2way_b) %>% as.data.frame() %>%
-  dplyr::filter(padj < 0.05) %>%
-  dplyr::arrange(padj)
-
-# estimating size factors
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# 2 rows did not converge in beta, labelled in mcols(object)$fullBetaConv. Use larger maxit argument with nbinomLRT
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 8731 genes
-# -- DESeq argument 'minReplicatesForReplace' = 7 
-# -- original counts are preserved in counts(dds)
-# estimating dispersions
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-
-# Only 1 significant gene. We can discard this term
-dds_2way_upd = DESeqDataSetFromMatrix(countData = assay(dds),
-                                      colData = coldata,
-                                      design = ~ Recurrence + Stage + Sample.type +
-                                        Stage:Sample.type +
-                                        Recurrence:Stage)
-
-# Stage:Sample.type checks
-dds_lrt_2way_c = DESeq(dds_2way_upd, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                         # Recurrence:Sample.type +
-                         Recurrence:Stage)
-res_lrt_2way_c = results(dds_lrt_2way_c) %>% as.data.frame() %>%
-  dplyr::filter(padj < 0.05) %>%
-  dplyr::arrange(padj)
-
-# estimating size factors
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
+# using pre-existing size factors
 # estimating dispersions
 # gene-wise dispersion estimates
 # mean-dispersion relationship
@@ -189,7 +95,7 @@ res_lrt_2way_c = results(dds_lrt_2way_c) %>% as.data.frame() %>%
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 8812 genes
+# -- replacing outliers and refitting for 6796 genes
 # -- DESeq argument 'minReplicatesForReplace' = 7 
 # -- original counts are preserved in counts(dds)
 # estimating dispersions
@@ -199,87 +105,74 @@ res_lrt_2way_c = results(dds_lrt_2way_c) %>% as.data.frame() %>%
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
 
-# 528 significant genes. We keep it
-
-dds_Wald = DESeq(dds_2way_upd, test = "Wald")
-
-# estimating size factors
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 8812 genes
-# -- DESeq argument 'minReplicatesForReplace' = 7 
-# -- original counts are preserved in counts(dds)
-# estimating dispersions
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-
-# which(!mcols(dds_Wald)$betaConv)
+# sum(is.na(mcols(dds_Wald)$betaConv)) 872 genes
 
 # We discard these rows from dds_Wald (some of them may end up as DEGs otherwise)
-dds_Wald_filt = dds_Wald[which(mcols(dds_Wald)$betaConv), ]
+dds_Wald_filt = dds_Wald[!is.na(mcols(dds_Wald)$betaConv), ] # Exclude 872 genes
 resultsNames(dds_Wald_filt) # Names of the coefficients
 
 # Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
 # Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
 # Stage_Late_vs_Early: Effect of late stage compared to early.
 # Recurrence_Recurrence_vs_No.recurrence: Effect of recurrence compared to no recurrence in normal samples.
-# StageLate.Sample.typeTumor: Additional effect in tumor samples at late stage.
 # RecurrenceRecurrence.StageLate: Additional effect of recurrence in late-stage samples.
 
-# Create contrast list
+# Create updated contrast list
 contrasts <- list(
   # 1. Recurrent Tumors vs. Non-Recurrent Tumors Overall
+  # For tumors overall, the difference in recurrence is given by the main effect 
+  # plus half the interaction (assuming roughly equal representation of early and late stage).
   tumor_rec_vs_tumor_no_rec = list(
-    contrast = c(
-      "Recurrence_Recurrence_vs_No.recurrence",
-      "RecurrenceRecurrence.StageLate"
-    ),
+    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
     listValues = c(1, 0.5)
   ),
   
   # 2. Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors
+  # For recurrent tumors, the stage effect is the sum of the main stage effect and the interaction.
   late_tumor_rec_vs_early_tumor_rec = list(
-    contrast = c(
-      "Stage_Late_vs_Early",
-      "StageLate.Sample.typeTumor",
-      "RecurrenceRecurrence.StageLate"
-    ),
-    listValues = c(1, 1, 1)
+    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
+    listValues = c(1, 1)
   ),
   
   # 3. Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
+  # In early-stage tumors the recurrence effect is given solely by the main recurrence effect.
   early_tumor_rec_vs_early_tumor_no_rec = list(
-    contrast = c(
-      "Recurrence_Recurrence_vs_No.recurrence"
-    ),
+    contrast = c("Recurrence_Recurrence_vs_No.recurrence"),
     listValues = c(1)
   ),
   
   # 4. Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
+  # In late-stage tumors the recurrence difference is the sum of the main effect and the interaction.
   late_tumor_rec_vs_late_tumor_no_rec = list(
-    contrast = c(
-      "Recurrence_Recurrence_vs_No.recurrence",
-      "RecurrenceRecurrence.StageLate"
-    ),
+    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
     listValues = c(1, 1)
+  ),
+  
+  # Additional Comparisons:
+  
+  # a) All Late vs. All Early (averaged across recurrence)
+  # For all samples, the stage difference in non-recurrent samples is 'Stage_Late_vs_Early'
+  # and in recurrent samples it is 'Stage_Late_vs_Early' plus the interaction.
+  # Here we average the effect by assigning a weight of 0.5 to the interaction term.
+  all_late_vs_all_early = list(
+    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
+    listValues = c(1, 0.5)
+  ),
+  
+  # b) Late Tumor No Recurrence vs. Early Tumor No Recurrence
+  # For non-recurrent tumors the stage effect is given solely by 'Stage_Late_vs_Early'.
+  late_tumor_no_rec_vs_early_tumor_no_rec = list(
+    contrast = c("Stage_Late_vs_Early"),
+    listValues = c(1)
+  ),
+  
+  # c) Late Tumors vs. Early Tumors (all tumors)
+  # When considering all tumor samples, the average stage difference is computed
+  # by taking the non-recurrent effect (Stage_Late_vs_Early) and adding half the interaction effect,
+  # again assuming roughly equal proportions of recurrence.
+  late_tumors_vs_early_tumors = list(
+    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
+    listValues = c(1, 0.5)
   )
 )
 
@@ -304,20 +197,32 @@ gc()
 
 # Independent filtering
 metadata(results[[1]])$filterThreshold
-# 25.20408% of genes do not pass the threshold
-# 1.207857
+# 5.816327% of genes do not pass the threshold
+# 0.07400563
 
 metadata(results[[2]])$filterThreshold
-# 31.02041%% of genes do not pass the threshold
-# 2.470962
+# 34.89796% of genes do not pass the threshold
+# 3.011231
 
 metadata(results[[3]])$filterThreshold
-# 31.02041%% of genes do not pass the threshold
-# 2.470962
+# 32.95918% of genes do not pass the threshold
+# 2.317844
 
 metadata(results[[4]])$filterThreshold
-# 25.20408% of genes do not pass the threshold
-# 1.207857
+# 34.89796% of genes do not pass the threshold
+# 3.011231
+
+metadata(results[[5]])$filterThreshold
+# 32.95918% of genes do not pass the threshold
+# 2.317844
+
+metadata(results[[6]])$filterThreshold
+# 32.95918% of genes do not pass the threshold
+# 2.317844
+
+metadata(results[[7]])$filterThreshold
+# 32.95918% of genes do not pass the threshold
+# 2.317844
 
 # Shrinking logFCs
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
@@ -364,7 +269,8 @@ if (color_handle) {
 }
 
 # Create short sheet names
-short_sheet_names <- c("TR_vs_TNR", "LTR_vs_ETR", "ETR_vs_ETNR", "LTR_vs_LTNR")
+short_sheet_names <- c("TR_vs_TNR", "LTR_vs_ETR", "ETR_vs_ETNR", "LTR_vs_LTNR",
+                       "L_vs_E", "LTNR_vs_ETNR", "LT_vs_ET")
 short_sheet_names_ashr <- paste0("ashr_", short_sheet_names)
 
 # Loop through results
@@ -701,7 +607,7 @@ for (i in 1:length(ashr_shrunk_results)) {
 rm(genes, i, res, keyvals.colour, volcano)
 
 # Number of features for plots
-n_degs = 100
+n_degs = 50
 
 # Top n_degs variable genes fromt the VST object
 topVarGenes = head(order(rowVars(assay(vsd)), decreasing = TRUE), n_degs)
@@ -728,20 +634,30 @@ pheatmap(matvar, annotation_col = anno,
 dev.off()
 
 # Filtered cohorts for filtered heatmaps
-filtered_samples1 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor"]
-filtered_samples2 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
-                                       Pheno$Recurrence == "Recurrence"]
-filtered_samples3 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
-                                       Pheno$Stage == "Early"]
-filtered_samples4 = Pheno$Patient.ID[Pheno$Sample.type == "Tumor" &
-                                       Pheno$Stage == "Late"]
+pheno_filt = Pheno[!Pheno$Patient.ID %in% outliers, ]
+filtered_samples1 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor"]
+filtered_samples2 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
+                                       pheno_filt$Recurrence == "Recurrence"]
+filtered_samples3 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
+                                       pheno_filt$Stage == "Early"]
+filtered_samples4 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
+                                       pheno_filt$Stage == "Late"]
+filtered_samples5 = pheno_filt$Patient.ID
+filtered_samples6 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
+                                       pheno_filt$Recurrence == "No recurrence"]
+filtered_samples7 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor"]
 filtered_samples = list(filtered_samples1, filtered_samples2,
-                        filtered_samples3, filtered_samples4)
+                        filtered_samples3, filtered_samples4,
+                        filtered_samples5, filtered_samples6,
+                        filtered_samples7)
 names(filtered_samples) = names(ashr_shrunk_results)
-rm(filtered_samples1, filtered_samples2, filtered_samples3, filtered_samples4); gc()
-columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence")
+rm(filtered_samples1, filtered_samples2, filtered_samples3, filtered_samples4,
+   filtered_samples5, filtered_samples6, filtered_samples7); gc()
+columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence",
+                        "Stage", "Stage", "Stage")
 
 # Heatmaps for raw LFCs
+anno = anno[pheno_filt$Patient.ID, ]
 for (i in 1:length(results)) {
   # Construct the data frame
   genes = rownames(results[[i]])
@@ -751,7 +667,8 @@ for (i in 1:length(results)) {
     dplyr::arrange(padj) %>%
     na.omit()
   
-  topDEGs = res[which(res$padj < 0.05),]
+  topDEGs = res[which(res$padj < 0.05),] # %>%
+  #  dplyr::filter(!is.na(Gene.Symbol))
   
   # Gene clustering with raw counts and Poisson distance
   topDEGs = topDEGs[1:n_degs, ]
@@ -858,7 +775,7 @@ for (i in 1:length(results)) {
   # Ordered genes and samples
   column_of_interest = columns_of_interest[i]
   indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
-  arrangement = Pheno[Pheno$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
   arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
   gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
   gaps_col = gaps_col[-length(gaps_col)]
@@ -1009,7 +926,7 @@ for (i in 1:length(ashr_shrunk_results)) {
   # Ordered genes and samples
   column_of_interest = columns_of_interest[i]
   indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
-  arrangement = Pheno[Pheno$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
   arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
   gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
   gaps_col = gaps_col[-length(gaps_col)]
