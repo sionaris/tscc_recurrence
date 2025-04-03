@@ -104,7 +104,9 @@ rm(toremove); gc()
 # glmpca
 RNGversion("4.2.2")
 set.seed(123)
-gpca = glmpca(counts(dds_pre), L=2)
+gpca = glmpca(counts(dds_pre), L=2, fam = "nb", minibatch = "none",
+              optimizer = "fisher",
+              ctl = list(maxIter = 10000, tol = 1e-6))
 gpca.dat = gpca$factors
 gpca.dat$Sample.ID = rownames(gpca.dat)
 
@@ -560,7 +562,9 @@ pcaplot = ggplot(pcaData, aes(PC1, PC2, color = Sample.type, shape = Recurrence)
 # Generalized PCA (more appropriate for count data)
 RNGversion("4.2.2")
 set.seed(123)
-gpca = glmpca(counts(dds), L=2)
+gpca = glmpca(counts(dds), L=2, fam = "nb", minibatch = "none",
+              optimizer = "fisher",
+              ctl = list(maxIter = 10000, tol = 1e-6))
 gpca.dat = gpca$factors
 gpca.dat$Sample.type = dds$Sample.type
 gpca.dat$Stage = dds$Stage
