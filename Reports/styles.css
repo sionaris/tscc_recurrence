@@ -1,0 +1,10 @@
+#sidebar {
+  position: fixed;
+  top: 20px;     /* Adjust as needed */
+  right: 20px;   /* Adjust as needed */
+  width: 300px;  /* Adjust width as needed */
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  padding: 10px;
+  z-index: 1000; /* Ensure it stays on top of other content */
+}

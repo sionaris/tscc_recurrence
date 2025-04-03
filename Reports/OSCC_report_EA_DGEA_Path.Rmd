@@ -7,8 +7,14 @@ abstract: >
 output: 
   html_document:
     fig.width : 12
+    number_sections: true
     toc: true
     toc_depth: 4
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+      position: left
+    css: styles.css
 ---
 
 ```{r setup, include=FALSE}
@@ -256,6 +262,25 @@ cat('
 </style>
 ')
 ```
+
+<div id="sidebar">
+  <h3>Abbreviations</h3>
+  <ul>
+    <li><abbr><b>T</b></abbr>: Tumor</li>
+    <li><abbr><b>C</b></abbr>: Control</li>
+    <li><abbr><b>R</b></abbr>: Recurrence</li>
+    <li><abbr><b>NR</b></abbr>: No recurrence</li>
+    <li><abbr><b>L</b></abbr>: Late-Stage</li>
+    <li><abbr><b>E</b></abbr>: Early-Stage</li>
+    <li><abbr><b>TR_vs_TNR</b></abbr>: Recurrent Tumors vs. Non-recurrent Tumors</li>
+    <li><abbr><b>LTR_vs_ETR</b></abbr>: Late-Stage Recurrent Tumors vs. Early-Stage Recurrent Tumors</li>
+    <li><abbr><b>ETR_vs_ETNR</b></abbr>: Early-Stage Recurrent Tumors vs. Early-Stage Non-recurrent Tumors</li>
+    <li><abbr><b>LTR_vs_LTNR</b></abbr>: Late-Stage Recurrent Tumors vs. Late-Stage Non-recurrent Tumors</li>
+    <li><abbr><b>L_vs_E</b></abbr>: Late-Stage Samples vs. Early-Stage Samples (averaged across recurrence)</li>
+    <li><abbr><b>LTNR_vs_ETNR</b></abbr>: Late-Stage Non-recurrent Tumors vs. Early-Stage Non-recurrent Tumors</li>
+    <li><abbr><b>LT_vs_ET</b></abbr>: Late-Stage Tumors vs. Early-Stage Tumors</li>
+  </ul>
+</div>
 
 # Overview
 <b> Overview of the analysis steps: </b>
@@ -979,3 +1004,25 @@ pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LTNR_
 ```{r auto_LT_vs_ET_pathfindR_plots, echo = FALSE, eval = TRUE, results = 'asis'}
 pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LT_vs_ET")
 ```
+
+# Session information
+<details><summary><b>Exploratory analysis</b></summary>
+```{r, echo=FALSE, results='asis'}
+# Read the text file and print its contents
+cat(readLines("Preprocessing_and_EA_sessionInfo.txt"), sep = "\n")
+```
+</details>
+
+<details><summary><b>DGEA</b></summary>
+```{r, echo=FALSE, results='asis'}
+# Read the text file and print its contents
+cat(readLines("DGEA_sessionInfo.txt"), sep = "\n")
+```
+</details>
+
+<details><summary><b>Pathways</b></summary>
+```{r, echo=FALSE, results='asis'}
+# Read the text file and print its contents
+cat(readLines("Pathways_sessionInfo.txt"), sep = "\n")
+```
+</details>
