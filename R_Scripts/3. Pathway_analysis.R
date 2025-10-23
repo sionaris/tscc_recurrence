@@ -20,15 +20,14 @@ library(crayon)
 
 # Import data (4 lists from DGEA)
 ashr_dgea = list()
-for (i in 1:7) {
+for (i in 1:4) {
   ashr_dgea[[i]] = openxlsx::read.xlsx("Results/DGEA/DGEA_ashr.xlsx", sheet = i)
 }
 rm(i); gc()
- 
+
 names(ashr_dgea) = paste0("ashr_", 
                           c("TR_vs_TNR", "LTR_vs_ETR", 
-                            "ETR_vs_ETNR", "LTR_vs_LTNR",
-                            "L_vs_E", "LTNR_vs_ETNR", "LT_vs_ET"))
+                            "ETR_vs_ETNR", "LTR_vs_LTNR"))
 
 # Import dds object
 dds = readRDS("Resources_and_environments/final_dds.rds")
@@ -76,44 +75,68 @@ pathfindR_results = list()
 # Set download option to libcurl for clusterProfiler
 R.utils::setOption("clusterProfiler.download.method","libcurl")
 
+collapse_named_numeric <- function(x_vals, x_names, fun = mean) {
+  ok <- !is.na(x_names)
+  x_vals <- x_vals[ok]
+  x_names <- x_names[ok]
+  agg <- tapply(x_vals, x_names, fun)
+  setNames(as.numeric(agg), names(agg))  # strip "array" class
+}
+
 # Objects to keep after every loop
 keepers = c("ashr_dgea", "gsea_wb_list", "ora_wb_list", "pathfindR_wb_list",
             "gsea_results", "ora_results", "pathfindR_results", "pathway_approaches",
-            "i", "keepers")
+            "i", "keepers", "collapse_named_numeric")
 
 # ORA and GSEA #####
 for (i in 1:length(ashr_dgea)) {
   
+  # choose adjusted p column (prefer IHW if present)
+  padj_use <- if ("padj_ihw" %in% names(ashr_dgea[[i]])) ashr_dgea[[i]]$padj_ihw else ashr_dgea[[i]]$padj
+  
+  # choose LFC column for ranking (prefer ashr-shrunk if present)
+  lfc_col <- if ("log2FC_shrunk" %in% names(ashr_dgea[[i]])) "log2FC_shrunk" else "log2FoldChange"
+  
   # Define the cutoff for significant genes
-  sig_genes = ashr_dgea[[i]]$padj < 0.05
+  sig_genes = padj_use < 0.05 & !is.na(ashr_dgea[[i]]$Gene.Symbol)
   
   # Extract the log2 fold changes and gene names of the significant genes for ORA
-  sig_log2fc = ashr_dgea[[i]]$log2FoldChange[sig_genes]
+  sig_log2fc = ashr_dgea[[i]][[lfc_col]][sig_genes]
   sig_ora_genes = ashr_dgea[[i]]$Gene.Symbol[sig_genes]
-  sig_gene_list = sig_log2fc
-  names(sig_gene_list) = sig_ora_genes
-  rm(sig_log2fc, sig_ora_genes)
-  sig_gene_list = sort(sig_gene_list, decreasing = TRUE) # symbols
-  sig_gene_list_conv = suppressWarnings(bitr(names(sig_gene_list), fromType = "SYMBOL",
-                                             toType = "ENTREZID", OrgDb = org.Hs.eg.db))
-  sig_gene_list_entrez = sig_gene_list
-  names(sig_gene_list_entrez) = as.character(sig_gene_list_conv$ENTREZID)
-  sig_gene_list_entrez = sort(sig_gene_list_entrez, decreasing = TRUE) # Entrez ids
+  sig_gene_list = collapse_named_numeric(sig_log2fc, sig_ora_genes)
+  sig_gene_list = sort(sig_gene_list, decreasing = TRUE)            # SYMBOL → numeric vec
   
-  # Extract log2 fold changes for GSEA (all genes)
-  log2fc = ashr_dgea[[i]]$log2FoldChange
-  genes = ashr_dgea[[i]]$Gene.Symbol
-  gene_list = log2fc
-  names(gene_list) = genes
-  rm(log2fc, genes)
-  gene_list = sort(gene_list, decreasing = TRUE) # symbols
-  gene_list_conv = suppressWarnings(bitr(names(gene_list), fromType = "SYMBOL",
-                                         toType = "ENTREZID", OrgDb = org.Hs.eg.db))
-  gene_list_entrez = gene_list
-  names(gene_list_entrez) = as.character(gene_list_conv$ENTREZID)
-  gene_list_entrez = sort(gene_list_entrez, decreasing = TRUE) # Entrez ids
-  entrez_universe = suppressWarnings(bitr(ashr_dgea[[i]]$Gene.Symbol, fromType = "SYMBOL",
-                                          toType = "ENTREZID", OrgDb = org.Hs.eg.db))$ENTREZID
+  sig_gene_list_conv = suppressWarnings(
+    bitr(names(sig_gene_list), fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+  )
+  # map to ENTREZ and collapse duplicates again
+  sig_gene_list_entrez <- sig_gene_list[names(sig_gene_list) %in% sig_gene_list_conv$SYMBOL]
+  names(sig_gene_list_entrez) <- as.character(
+    sig_gene_list_conv$ENTREZID[match(names(sig_gene_list_entrez), sig_gene_list_conv$SYMBOL)]
+  )
+  sig_gene_list_entrez <- collapse_named_numeric(sig_gene_list_entrez, names(sig_gene_list_entrez))
+  sig_gene_list_entrez <- sort(sig_gene_list_entrez, decreasing = TRUE)  # ENTREZ → numeric vec
+  
+  # Extract log2 fold changes for GSEA (all genes; shrunk if available)
+  log2fc = ashr_dgea[[i]][[lfc_col]]
+  genes  = ashr_dgea[[i]]$Gene.Symbol
+  gene_list = collapse_named_numeric(log2fc, genes)
+  gene_list = sort(gene_list, decreasing = TRUE)                   # SYMBOL → numeric vec
+  
+  gene_list_conv = suppressWarnings(
+    bitr(names(gene_list), fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+  )
+  gene_list_entrez <- gene_list[names(gene_list) %in% gene_list_conv$SYMBOL]
+  names(gene_list_entrez) <- as.character(
+    gene_list_conv$ENTREZID[match(names(gene_list_entrez), gene_list_conv$SYMBOL)]
+  )
+  gene_list_entrez <- collapse_named_numeric(gene_list_entrez, names(gene_list_entrez))
+  gene_list_entrez <- sort(gene_list_entrez, decreasing = TRUE)    # ENTREZ → numeric vec
+  
+  entrez_universe <- suppressWarnings(
+    bitr(ashr_dgea[[i]]$Gene.Symbol, fromType = "SYMBOL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+  )$ENTREZID
+  entrez_universe <- unique(entrez_universe[!is.na(entrez_universe)])
   
   # Gene Set Enrichment Analysis (GSEA) #####
   
@@ -135,7 +158,6 @@ for (i in 1:length(ashr_dgea)) {
   
   if (exists("gseaGO")) {
     if (nrow(gseaGO) > 0) {
-      # gseaGO = clusterProfiler::setReadable(gseaGO, 'org.Hs.eg.db')
       gsea_output[["Gene Ontology"]] = gseaGO@result
       
       addWorksheet(gsea_wb_list[[i]], "GSEA_GO")
@@ -235,21 +257,21 @@ for (i in 1:length(ashr_dgea)) {
   RNGversion("4.2.2")
   set.seed(123)
   gseaNCG = suppressWarnings(DOSE::gseNCG(geneList = gene_list_entrez,
-                        pvalueCutoff = 0.1,
-                        pAdjustMethod = "BH",
-                        minGSSize = 3,
-                        maxGSSize = 800,
-                        seed = TRUE))
-
+                                          pvalueCutoff = 0.1,
+                                          pAdjustMethod = "BH",
+                                          minGSSize = 3,
+                                          maxGSSize = 800,
+                                          seed = TRUE))
+  
   if (exists("gseaNCG")) {
-   if (nrow(gseaNCG) > 0) {
-     gseaNCG = clusterProfiler::setReadable(gseaNCG, 'org.Hs.eg.db',
-                                            keyType = "ENTREZID")
-     gsea_output[["Network Cancer Gene (NCG)"]] = gseaNCG@result
-
-     addWorksheet(gsea_wb_list[[i]], "GSEA_NCG")
-     writeData(gsea_wb_list[[i]], "GSEA_NCG", as.data.frame(gseaNCG@result))
-   }
+    if (nrow(gseaNCG) > 0) {
+      gseaNCG = clusterProfiler::setReadable(gseaNCG, 'org.Hs.eg.db',
+                                             keyType = "ENTREZID")
+      gsea_output[["Network Cancer Gene (NCG)"]] = gseaNCG@result
+      
+      addWorksheet(gsea_wb_list[[i]], "GSEA_NCG")
+      writeData(gsea_wb_list[[i]], "GSEA_NCG", as.data.frame(gseaNCG@result))
+    }
   }
   
   # DO in the Disease Gene Network (DisGeNET)
@@ -257,20 +279,20 @@ for (i in 1:length(ashr_dgea)) {
   RNGversion("4.2.2")
   set.seed(123)
   gseaDGN = suppressWarnings(DOSE::gseDGN(geneList = gene_list_entrez,
-                       pvalueCutoff = 0.1,
-                       pAdjustMethod = "BH",
-                       minGSSize = 3,
-                       maxGSSize = 800,
-                       seed = TRUE))
+                                          pvalueCutoff = 0.1,
+                                          pAdjustMethod = "BH",
+                                          minGSSize = 3,
+                                          maxGSSize = 800,
+                                          seed = TRUE))
   if (exists("gseaDGN")) {
-  if (nrow(gseaDGN) > 0) {
-   gseaDGN = clusterProfiler::setReadable(gseaDGN, 'org.Hs.eg.db',
-                                          keyType = "ENTREZID")
-   gsea_output[["Disease Gene Network (DisGeNET)"]] = gseaDGN@result
-
-    addWorksheet(gsea_wb_list[[i]], "GSEA_DGN")
-    writeData(gsea_wb_list[[i]], "GSEA_DGN", as.data.frame(gseaDGN@result))
-  }
+    if (nrow(gseaDGN) > 0) {
+      gseaDGN = clusterProfiler::setReadable(gseaDGN, 'org.Hs.eg.db',
+                                             keyType = "ENTREZID")
+      gsea_output[["Disease Gene Network (DisGeNET)"]] = gseaDGN@result
+      
+      addWorksheet(gsea_wb_list[[i]], "GSEA_DGN")
+      writeData(gsea_wb_list[[i]], "GSEA_DGN", as.data.frame(gseaDGN@result))
+    }
   }
   
   gsea_results[[i]] = gsea_output
@@ -360,7 +382,7 @@ for (i in 1:length(ashr_dgea)) {
   if (exists("oraReactome")) {
     if (nrow(oraReactome) > 0) {
       oraReactome = clusterProfiler::setReadable(oraReactome, 'org.Hs.eg.db',
-                                   keyType = "ENTREZID")
+                                                 keyType = "ENTREZID")
       ora_output[["Reactome"]] = oraReactome@result
       oraReactome_q0.2 = oraReactome@result %>% dplyr::filter(qvalue <= 0.2)
       
@@ -371,68 +393,68 @@ for (i in 1:length(ashr_dgea)) {
   
   # DO
   oraDO = suppressWarnings(DOSE::enrichDO(gene = names(sig_gene_list_entrez),
-                        universe = entrez_universe,
-                        pvalueCutoff = 0.1,
-                        qvalueCutoff = 0.2,
-                        pAdjustMethod = "BH",
-                        minGSSize = 3,
-                        maxGSSize = 800,
-                        readable = TRUE))
-
+                                          universe = entrez_universe,
+                                          pvalueCutoff = 0.1,
+                                          qvalueCutoff = 0.2,
+                                          pAdjustMethod = "BH",
+                                          minGSSize = 3,
+                                          maxGSSize = 800,
+                                          readable = TRUE))
+  
   if (exists("oraDO")) {
-   if (nrow(oraDO) > 0) {
-     oraDO = clusterProfiler::setReadable(oraDO, 'org.Hs.eg.db',
-                                          keyType = "ENTREZID")
-     ora_output[["Disease Ontology"]] = oraDO@result
-     oraDO_q0.2 = oraDO@result %>% dplyr::filter(qvalue <= 0.2)
-
-     addWorksheet(ora_wb_list[[i]], "ORA_DO")
-     writeData(ora_wb_list[[i]], "ORA_DO", as.data.frame(oraDO_q0.2))
-   }
+    if (nrow(oraDO) > 0) {
+      oraDO = clusterProfiler::setReadable(oraDO, 'org.Hs.eg.db',
+                                           keyType = "ENTREZID")
+      ora_output[["Disease Ontology"]] = oraDO@result
+      oraDO_q0.2 = oraDO@result %>% dplyr::filter(qvalue <= 0.2)
+      
+      addWorksheet(ora_wb_list[[i]], "ORA_DO")
+      writeData(ora_wb_list[[i]], "ORA_DO", as.data.frame(oraDO_q0.2))
+    }
   }
-
+  
   # DO: NCG
   oraNCG = suppressWarnings(DOSE::enrichNCG(gene = names(sig_gene_list_entrez),
-                          universe = entrez_universe,
-                          pvalueCutoff = 0.1,
-                          qvalueCutoff = 0.2,
-                          pAdjustMethod = "BH",
-                          minGSSize = 3,
-                          maxGSSize = 800,
-                          readable = TRUE))
-
+                                            universe = entrez_universe,
+                                            pvalueCutoff = 0.1,
+                                            qvalueCutoff = 0.2,
+                                            pAdjustMethod = "BH",
+                                            minGSSize = 3,
+                                            maxGSSize = 800,
+                                            readable = TRUE))
+  
   if (exists("oraNCG")) {
-     if (nrow(oraNCG) > 0) {
-       oraNCG = clusterProfiler::setReadable(oraNCG, 'org.Hs.eg.db',
+    if (nrow(oraNCG) > 0) {
+      oraNCG = clusterProfiler::setReadable(oraNCG, 'org.Hs.eg.db',
                                             keyType = "ENTREZID")
-       ora_output[["Network Cancer Gene (NCG)"]] = oraNCG@result
-       oraNCG_q0.2 = oraNCG@result %>% dplyr::filter(qvalue <= 0.2)
-
-       addWorksheet(ora_wb_list[[i]], "ORA_NCG")
-       writeData(ora_wb_list[[i]], "ORA_NCG", as.data.frame(oraNCG_q0.2))
-     }
+      ora_output[["Network Cancer Gene (NCG)"]] = oraNCG@result
+      oraNCG_q0.2 = oraNCG@result %>% dplyr::filter(qvalue <= 0.2)
+      
+      addWorksheet(ora_wb_list[[i]], "ORA_NCG")
+      writeData(ora_wb_list[[i]], "ORA_NCG", as.data.frame(oraNCG_q0.2))
+    }
   }
   
   # DO: DGN
   oraDGN = suppressWarnings(DOSE::enrichDGN(gene = names(sig_gene_list_entrez),
-                          universe = entrez_universe,
-                          pvalueCutoff = 0.1,
-                          qvalueCutoff = 0.2,
-                          pAdjustMethod = "BH",
-                          minGSSize = 3,
-                          maxGSSize = 800,
-                          readable = TRUE))
-
+                                            universe = entrez_universe,
+                                            pvalueCutoff = 0.1,
+                                            qvalueCutoff = 0.2,
+                                            pAdjustMethod = "BH",
+                                            minGSSize = 3,
+                                            maxGSSize = 800,
+                                            readable = TRUE))
+  
   if (exists("oraDGN")) {
-   if (nrow(oraDGN) > 0) {
-     oraDGN = clusterProfiler::setReadable(oraDGN, 'org.Hs.eg.db',
-                                           keyType = "ENTREZID")
-     ora_output[["Disease Gene Network (DisGeNET)"]] = oraDGN@result
-     oraDGN_q0.2 = oraDGN@result %>% dplyr::filter(qvalue <= 0.2)
-
-     addWorksheet(ora_wb_list[[i]], "ORA_DGN")
-     writeData(ora_wb_list[[i]], "ORA_DGN", as.data.frame(oraDGN_q0.2))
-   }
+    if (nrow(oraDGN) > 0) {
+      oraDGN = clusterProfiler::setReadable(oraDGN, 'org.Hs.eg.db',
+                                            keyType = "ENTREZID")
+      ora_output[["Disease Gene Network (DisGeNET)"]] = oraDGN@result
+      oraDGN_q0.2 = oraDGN@result %>% dplyr::filter(qvalue <= 0.2)
+      
+      addWorksheet(ora_wb_list[[i]], "ORA_DGN")
+      writeData(ora_wb_list[[i]], "ORA_DGN", as.data.frame(oraDGN_q0.2))
+    }
   }
   
   ora_results[[i]] = ora_output
@@ -474,8 +496,15 @@ adj_method = 'fdr'
 # ashr_TR_vs_TNR #####
 # Preparing a pathfindR loop for enrichment analysis
 subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
+
+# prefer shrunk LFCs and IHW-adjusted p where available
+lfc_col  <- if ("log2FC_shrunk" %in% names(ashr_dgea$ashr_TR_vs_TNR)) "log2FC_shrunk" else "log2FoldChange"
+padj_col <- if ("padj_ihw" %in% names(ashr_dgea$ashr_TR_vs_TNR)) "padj_ihw" else "padj"
+
 pathf_input_ashr_TR_vs_TNR = ashr_dgea$ashr_TR_vs_TNR %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
+  dplyr::select(Gene.Symbol,
+                log2FoldChange = dplyr::all_of(lfc_col),
+                padj           = dplyr::all_of(padj_col)) %>%
   na.omit()
 
 # Preparing a pathfindR loop for enrichment analysis
@@ -552,11 +581,9 @@ for (i in 1:length(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)){
 rm(i)
 
 comparisons = c("TR vs TNR", "LTR vs ETR", 
-                "ETR vs ETNR", "LTR vs LTNR",
-                "L_vs_E", "LTNR_vs_ETNR", "LT_vs_ET")
+                "ETR vs ETNR", "LTR vs LTNR")
 names(comparisons) = c("ashr_TR_vs_TNR", "ashr_LTR_vs_ETR",
-                       "ashr_ETR_vs_ETNR", "ashr_LTR_vs_LTNR",
-                       "ashr_L_vs_E", "ashr_LTNR_vs_ETNR", "ashr_LT_vs_ET")
+                       "ashr_ETR_vs_ETNR", "ashr_LTR_vs_LTNR")
 
 enrichment_dotplots_ashr_TR_vs_TNR = list()
 cluster_enrichment_dotplots_ashr_TR_vs_TNR = list()
@@ -566,28 +593,28 @@ for (i in nonzero_res){
   names = names(pathfindR_outputs_ashr_TR_vs_TNR)[i]
   cat(blue("Trying enrichment dotplot for", names, "\n"))
   # unclustered results
-  enrichment_dotplots_ashr_TR_vs_TNR[[names]] = enrichment_chart(result_df = wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[names]],
-                                                             top_terms = 10)+
-    scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-    scale_size(range = c(0.1, 2)) +
-    theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-          axis.text.y = element_text(color = "black", size = 3.5),
-          axis.text.x = element_text(color = "black", size = 3.5),
-          axis.title.x = element_text(size = 4.5, face = "bold"),
-          legend.key.size = unit(1.5, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 3.5, face = "bold"),
-          legend.text = element_text(size = 2.75))+
-    labs(title = paste0("Top 10 ", names,
-                        " terms enrichment dotplot - (", comparisons["ashr_TR_vs_TNR"], ")"))
-  print(enrichment_dotplots_ashr_TR_vs_TNR[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
-         path = paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", 
-                       names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
+    enrichment_dotplots_ashr_TR_vs_TNR[[names]] = enrichment_chart(result_df = wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[names]],
+                                                                   top_terms = 10)+
+      scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
+      scale_size(range = c(0.1, 2)) +
+      theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
+            axis.text.y = element_text(color = "black", size = 3.5),
+            axis.text.x = element_text(color = "black", size = 3.5),
+            axis.title.x = element_text(size = 4.5, face = "bold"),
+            legend.key.size = unit(1.5, units = "mm"),
+            legend.spacing.y = unit(0.5, units = "mm"),
+            legend.spacing.x = unit(0.5, units = "mm"),
+            legend.title = element_text(size = 3.5, face = "bold"),
+            legend.text = element_text(size = 2.75))+
+      labs(title = paste0("Top 10 ", names,
+                          " terms enrichment dotplot - (", comparisons["ashr_TR_vs_TNR"], ")"))
+    print(enrichment_dotplots_ashr_TR_vs_TNR[[names]])
+    ggsave(filename = paste0(names, "_top10_dotplot.png"),
+           path = paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", 
+                         names, "/"),
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
+    dev.off()
   
   # clustered results
   if (names %in% names(clustered_results_ashr_TR_vs_TNR)) {
@@ -610,11 +637,11 @@ for (i in nonzero_res){
       labs(title = paste0("Top 10 clustered ", names,
                           " terms enrichment dotplot - (", comparisons["ashr_TR_vs_TNR"], ")"))
     print(cluster_enrichment_dotplots_ashr_TR_vs_TNR[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
+    ggsave(filename = paste0(names, "_top10_dotplot_clustered.png"),
            path = paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
 }
@@ -711,11 +738,11 @@ for (i in nonzero_res){
     #print(ggdraw(align_legend(term_gene_heatmaps_ashr_TR_vs_TNR[[names]], hjust = 0.5)))
     print(term_gene_heatmaps_ashr_TR_vs_TNR[[names]])
     ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
+                             "_top10_term_gene_heatmap.png"),
            path = paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
   
@@ -727,8 +754,9 @@ for (i in nonzero_res){
                                                          node_size = "p_val")+
     aes(max.overlaps = 5)+
     scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
+    ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
+                                            repel = FALSE, size = 2)+
+    coord_cartesian(clip = "off")+
     theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
           plot.background = element_rect(fill = "white"),
           plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
@@ -738,7 +766,9 @@ for (i in nonzero_res){
           legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
           legend.text = element_text(size = 4),
           #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
+          legend.position = c(1.13, 0.5), 
+          legend.justification = c(0, 0.5),
+          plot.margin = margin(2, 35, 2, 6, "mm"))+
     labs(title = paste0("Top 5 ", names, 
                         " term - gene graph (",
                         comparisons["ashr_TR_vs_TNR"], ")"))
@@ -747,11 +777,11 @@ for (i in nonzero_res){
                                                      term_gene_graphs_ashr_TR_vs_TNR[[names]]$layers[[4]])
   print(term_gene_graphs_ashr_TR_vs_TNR[[names]])
   ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
+                           "_top5_term_gene_graph.png"),
          path = paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", 
                        names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 1920*2.5, height = 1080*2.5, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
 }
 
@@ -784,9 +814,9 @@ for (i in nonzero_res){
          title = paste0("Top 5 ", names, 
                         " term - UpSet plot (",
                         comparisons["ashr_TR_vs_TNR"], ")"))
-  tiff(paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
+  png(paste0("Results/Pathways/ashr_TR_vs_TNR/pathfindR/", names, "/",
+              names, "_top5_UpSet_plot.png"), 
+       width = 2880, height = 1620*4, res = 700)
   print(UpSet_plots_ashr_TR_vs_TNR[[names]])
   dev.off()
 }
@@ -794,8 +824,15 @@ for (i in nonzero_res){
 # ashr_LTR_vs_ETR #####
 # Preparing a pathfindR loop for enrichment analysis
 subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
+
+# prefer shrunk LFCs and IHW-adjusted p where available
+lfc_col  <- if ("log2FC_shrunk" %in% names(ashr_dgea$ashr_LTR_vs_ETR)) "log2FC_shrunk" else "log2FoldChange"
+padj_col <- if ("padj_ihw" %in% names(ashr_dgea$ashr_LTR_vs_ETR)) "padj_ihw" else "padj"
+
 pathf_input_ashr_LTR_vs_ETR = ashr_dgea$ashr_LTR_vs_ETR %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
+  dplyr::select(Gene.Symbol,
+                log2FoldChange = dplyr::all_of(lfc_col),
+                padj           = dplyr::all_of(padj_col)) %>%
   na.omit()
 
 # Preparing a pathfindR loop for enrichment analysis
@@ -895,11 +932,11 @@ for (i in nonzero_res){
     labs(title = paste0("Top 10 ", names,
                         " terms enrichment dotplot - (", comparisons["ashr_LTR_vs_ETR"], ")"))
   print(enrichment_dotplots_ashr_LTR_vs_ETR[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
+  ggsave(filename = paste0(names, "_top10_dotplot.png"),
          path = paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", 
                        names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 2880, height = 1620, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
   
   # clustered results
@@ -923,11 +960,11 @@ for (i in nonzero_res){
       labs(title = paste0("Top 10 clustered ", names,
                           " terms enrichment dotplot - (", comparisons["ashr_LTR_vs_ETR"], ")"))
     print(cluster_enrichment_dotplots_ashr_LTR_vs_ETR[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
+    ggsave(filename = paste0(names, "_top10_dotplot_clustered.png"),
            path = paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
 }
@@ -990,11 +1027,11 @@ for (i in nonzero_res){
     #print(ggdraw(align_legend(term_gene_heatmaps_ashr_LTR_vs_ETR[[names]], hjust = 0.5)))
     print(term_gene_heatmaps_ashr_LTR_vs_ETR[[names]])
     ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
+                             "_top10_term_gene_heatmap.png"),
            path = paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
   
@@ -1006,8 +1043,9 @@ for (i in nonzero_res){
                                                               node_size = "p_val")+
     aes(max.overlaps = 5)+
     scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
+    ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
+                           repel = FALSE, size = 2)+
+    coord_cartesian(clip = "off")+
     theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
           plot.background = element_rect(fill = "white"),
           plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
@@ -1017,7 +1055,9 @@ for (i in nonzero_res){
           legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
           legend.text = element_text(size = 4),
           #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
+          legend.position = c(1.13, 0.5), 
+          legend.justification = c(0, 0.5),
+          plot.margin = margin(2, 35, 2, 6, "mm"))+
     labs(title = paste0("Top 5 ", names, 
                         " term - gene graph (",
                         comparisons["ashr_LTR_vs_ETR"], ")"))
@@ -1026,11 +1066,11 @@ for (i in nonzero_res){
                                                           term_gene_graphs_ashr_LTR_vs_ETR[[names]]$layers[[4]])
   print(term_gene_graphs_ashr_LTR_vs_ETR[[names]])
   ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
+                           "_top5_term_gene_graph.png"),
          path = paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", 
                        names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 1920*2.5, height = 1080*2.5, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
 }
 
@@ -1063,9 +1103,9 @@ for (i in nonzero_res){
          title = paste0("Top 5 ", names, 
                         " term - UpSet plot (",
                         comparisons["ashr_LTR_vs_ETR"], ")"))
-  tiff(paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
+  png(paste0("Results/Pathways/ashr_LTR_vs_ETR/pathfindR/", names, "/",
+              names, "_top5_UpSet_plot.png"), 
+       width = 2880, height = 1620*4, res = 700)
   print(UpSet_plots_ashr_LTR_vs_ETR[[names]])
   dev.off()
 }
@@ -1073,8 +1113,15 @@ for (i in nonzero_res){
 # ashr_LTR_vs_LTNR #####
 # Preparing a pathfindR loop for enrichment analysis
 subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
+
+# prefer shrunk LFCs and IHW-adjusted p where available
+lfc_col  <- if ("log2FC_shrunk" %in% names(ashr_dgea$ashr_LTR_vs_LTNR)) "log2FC_shrunk" else "log2FoldChange"
+padj_col <- if ("padj_ihw" %in% names(ashr_dgea$ashr_LTR_vs_LTNR)) "padj_ihw" else "padj"
+
 pathf_input_ashr_LTR_vs_LTNR = ashr_dgea$ashr_LTR_vs_LTNR %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
+  dplyr::select(Gene.Symbol,
+                log2FoldChange = dplyr::all_of(lfc_col),
+                padj           = dplyr::all_of(padj_col)) %>%
   na.omit()
 
 # Preparing a pathfindR loop for enrichment analysis
@@ -1174,11 +1221,11 @@ for (i in nonzero_res){
     labs(title = paste0("Top 10 ", names,
                         " terms enrichment dotplot - (", comparisons["ashr_LTR_vs_LTNR"], ")"))
   print(enrichment_dotplots_ashr_LTR_vs_LTNR[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
+  ggsave(filename = paste0(names, "_top10_dotplot.png"),
          path = paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", 
                        names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 2880, height = 1620, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
   
   # clustered results
@@ -1202,11 +1249,11 @@ for (i in nonzero_res){
       labs(title = paste0("Top 10 clustered ", names,
                           " terms enrichment dotplot - (", comparisons["ashr_LTR_vs_LTNR"], ")"))
     print(cluster_enrichment_dotplots_ashr_LTR_vs_LTNR[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
+    ggsave(filename = paste0(names, "_top10_dotplot_clustered.png"),
            path = paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
 }
@@ -1269,11 +1316,11 @@ for (i in nonzero_res){
     #print(ggdraw(align_legend(term_gene_heatmaps_ashr_LTR_vs_LTNR[[names]], hjust = 0.5)))
     print(term_gene_heatmaps_ashr_LTR_vs_LTNR[[names]])
     ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
+                             "_top10_term_gene_heatmap.png"),
            path = paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
   
@@ -1285,8 +1332,9 @@ for (i in nonzero_res){
                                                                node_size = "p_val")+
     aes(max.overlaps = 5)+
     scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
+    ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
+                           repel = FALSE, size = 2)+
+    coord_cartesian(clip = "off")+
     theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
           plot.background = element_rect(fill = "white"),
           plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
@@ -1296,7 +1344,9 @@ for (i in nonzero_res){
           legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
           legend.text = element_text(size = 4),
           #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
+          legend.position = c(1.13, 0.5), 
+          legend.justification = c(0, 0.5),
+          plot.margin = margin(2, 35, 2, 6, "mm"))+
     labs(title = paste0("Top 5 ", names, 
                         " term - gene graph (",
                         comparisons["ashr_LTR_vs_LTNR"], ")"))
@@ -1305,11 +1355,11 @@ for (i in nonzero_res){
                                                            term_gene_graphs_ashr_LTR_vs_LTNR[[names]]$layers[[4]])
   print(term_gene_graphs_ashr_LTR_vs_LTNR[[names]])
   ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
+                           "_top5_term_gene_graph.png"),
          path = paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", 
                        names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 1920*2.5, height = 1080*2.5, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
 }
 
@@ -1342,9 +1392,9 @@ for (i in nonzero_res){
          title = paste0("Top 5 ", names, 
                         " term - UpSet plot (",
                         comparisons["ashr_LTR_vs_LTNR"], ")"))
-  tiff(paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
+  png(paste0("Results/Pathways/ashr_LTR_vs_LTNR/pathfindR/", names, "/",
+              names, "_top5_UpSet_plot.png"), 
+       width = 2880, height = 1620*4, res = 700)
   print(UpSet_plots_ashr_LTR_vs_LTNR[[names]])
   dev.off()
 }
@@ -1352,8 +1402,15 @@ for (i in nonzero_res){
 # ashr_ETR_vs_ETNR #####
 # Preparing a pathfindR loop for enrichment analysis
 subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
+
+# prefer shrunk LFCs and IHW-adjusted p where available
+lfc_col  <- if ("log2FC_shrunk" %in% names(ashr_dgea$ashr_ETR_vs_ETNR)) "log2FC_shrunk" else "log2FoldChange"
+padj_col <- if ("padj_ihw" %in% names(ashr_dgea$ashr_ETR_vs_ETNR)) "padj_ihw" else "padj"
+
 pathf_input_ashr_ETR_vs_ETNR = ashr_dgea$ashr_ETR_vs_ETNR %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
+  dplyr::select(Gene.Symbol,
+                log2FoldChange = dplyr::all_of(lfc_col),
+                padj           = dplyr::all_of(padj_col)) %>%
   na.omit()
 
 # Preparing a pathfindR loop for enrichment analysis
@@ -1453,11 +1510,11 @@ for (i in nonzero_res){
     labs(title = paste0("Top 10 ", names,
                         " terms enrichment dotplot - (", comparisons["ashr_ETR_vs_ETNR"], ")"))
   print(enrichment_dotplots_ashr_ETR_vs_ETNR[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
+  ggsave(filename = paste0(names, "_top10_dotplot.png"),
          path = paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", 
                        names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 2880, height = 1620, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
   
   # clustered results
@@ -1481,11 +1538,11 @@ for (i in nonzero_res){
       labs(title = paste0("Top 10 clustered ", names,
                           " terms enrichment dotplot - (", comparisons["ashr_ETR_vs_ETNR"], ")"))
     print(cluster_enrichment_dotplots_ashr_ETR_vs_ETNR[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
+    ggsave(filename = paste0(names, "_top10_dotplot_clustered.png"),
            path = paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
 }
@@ -1548,11 +1605,11 @@ for (i in nonzero_res){
     #print(ggdraw(align_legend(term_gene_heatmaps_ashr_ETR_vs_ETNR[[names]], hjust = 0.5)))
     print(term_gene_heatmaps_ashr_ETR_vs_ETNR[[names]])
     ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
+                             "_top10_term_gene_heatmap.png"),
            path = paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", 
                          names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
+           width = 2880, height = 1620, device = 'png', units = "px",
+           dpi = 700)
     dev.off()
   }
   
@@ -1564,8 +1621,9 @@ for (i in nonzero_res){
                                                                node_size = "p_val")+
     aes(max.overlaps = 5)+
     scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
+    ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
+                           repel = FALSE, size = 2)+
+    coord_cartesian(clip = "off")+
     theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
           plot.background = element_rect(fill = "white"),
           plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
@@ -1575,7 +1633,9 @@ for (i in nonzero_res){
           legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
           legend.text = element_text(size = 4),
           #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
+          legend.position = c(1.13, 0.5), 
+          legend.justification = c(0, 0.5),
+          plot.margin = margin(2, 35, 2, 6, "mm"))+
     labs(title = paste0("Top 5 ", names, 
                         " term - gene graph (",
                         comparisons["ashr_ETR_vs_ETNR"], ")"))
@@ -1584,11 +1644,11 @@ for (i in nonzero_res){
                                                            term_gene_graphs_ashr_ETR_vs_ETNR[[names]]$layers[[4]])
   print(term_gene_graphs_ashr_ETR_vs_ETNR[[names]])
   ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
+                           "_top5_term_gene_graph.png"),
          path = paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", 
                        names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
+         width = 1920*2.5, height = 1080*2.5, device = 'png', units = "px",
+         dpi = 700)
   dev.off()
 }
 
@@ -1621,847 +1681,10 @@ for (i in nonzero_res){
          title = paste0("Top 5 ", names, 
                         " term - UpSet plot (",
                         comparisons["ashr_ETR_vs_ETNR"], ")"))
-  tiff(paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
+  png(paste0("Results/Pathways/ashr_ETR_vs_ETNR/pathfindR/", names, "/",
+              names, "_top5_UpSet_plot.png"), 
+       width = 2880, height = 1620*4, res = 700)
   print(UpSet_plots_ashr_ETR_vs_ETNR[[names]])
-  dev.off()
-}
-
-# ashr_L_vs_E #####
-# Preparing a pathfindR loop for enrichment analysis
-subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
-pathf_input_ashr_L_vs_E = ashr_dgea$ashr_L_vs_E %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
-  na.omit()
-
-# Preparing a pathfindR loop for enrichment analysis
-dirs_ashr_L_vs_E = paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", subdirs)
-pathfindR_outputs_ashr_L_vs_E = list()
-
-RNGversion("4.2.2")
-set.seed(123)
-for (i in 1:length(dirs_ashr_L_vs_E)){
-  pathfindR_outputs_ashr_L_vs_E[[i]] = run_pathfindR(pathf_input_ashr_L_vs_E, gene_sets = subdirs[i],
-                                                     p_val_threshold = p_val_threshold, convert2alias = FALSE,
-                                                     output_dir = dirs_ashr_L_vs_E[i], min_gset_size = min_gset_size,
-                                                     max_gset_size = max_gset_size, adj_method = adj_method,
-                                                     enrichment_threshold = enrichment_threshold,
-                                                     pin_name_path = pin_name_path, search_method = search_method,
-                                                     iterations = niter, n_processes = n_processes)
-  cat(paste0("Done with ", subdirs[i], "\n"))
-}
-names(pathfindR_outputs_ashr_L_vs_E) = subdirs
-
-# Perform hierarchical clustering on the results (average distance metric)
-# Bear in mind the algorithm time complexity is O(n^3)
-
-# Use a custom fast approach
-# Set up the number of cores to use
-nonzero_res = which(lapply(pathfindR_outputs_ashr_L_vs_E, nrow) != 0)
-cl <- makeCluster(length(nonzero_res))
-registerDoParallel(cl)
-
-timestamp()
-clustered_results_ashr_L_vs_E <- foreach(i = nonzero_res, .packages = c("pathfindR", "fastcluster")) %dopar% {
-  RNGversion("4.2.2")
-  set.seed(123)
-  source("R_Scripts/fast_pathfindR_hclust.R")
-  
-  # Perform clustering, handle errors
-  result <- cluster_enriched_terms_fast(pathfindR_outputs_ashr_L_vs_E[[i]], method = "hierarchical", plot_clusters_graph = FALSE,
-                                        use_description = TRUE, use_active_snw_genes = FALSE)
-  if (is.character(result) && result == "hclust impossible") {
-    return("hclust impossible")
-  } else {
-    return(result)
-  }
-}
-
-timestamp() # <0.5 mins
-stopCluster(cl)
-gc()
-
-names(clustered_results_ashr_L_vs_E) = names(nonzero_res)
-
-# Are there any null sets?
-clustered = which(clustered_results_ashr_L_vs_E != "hclust impossible")
-clustered_results_ashr_L_vs_E = clustered_results_ashr_L_vs_E[clustered]
-
-# Unlist
-for (i in 1:length(clustered_results_ashr_L_vs_E)) {
-  clustered_results_ashr_L_vs_E[[i]] = clustered_results_ashr_L_vs_E[[i]]$clustered_df
-}
-
-# Wrapping the text of terms with too many characters in their description
-wrapped_pathfindR_outputs_ashr_L_vs_E = pathfindR_outputs_ashr_L_vs_E
-for (i in nonzero_res){
-  wrapped_pathfindR_outputs_ashr_L_vs_E[[i]]$Term_Description = stringr::str_wrap(pathfindR_outputs_ashr_L_vs_E[[i]]$Term_Description, 
-                                                                                  width = 41)
-}
-rm(i)
-
-wrapped_clustered_pathfindR_outputs_ashr_L_vs_E = clustered_results_ashr_L_vs_E
-for (i in 1:length(wrapped_clustered_pathfindR_outputs_ashr_L_vs_E)){
-  wrapped_clustered_pathfindR_outputs_ashr_L_vs_E[[i]]$Term_Description = stringr::str_wrap(clustered_results_ashr_L_vs_E[[i]]$Term_Description, 
-                                                                                            width = 41)
-}
-rm(i)
-
-enrichment_dotplots_ashr_L_vs_E = list()
-cluster_enrichment_dotplots_ashr_L_vs_E = list()
-
-# Producing dotplots with the results
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_L_vs_E)[i]
-  cat(blue("Trying enrichment dotplot for", names, "\n"))
-  # unclustered results
-  enrichment_dotplots_ashr_L_vs_E[[names]] = enrichment_chart(result_df = wrapped_pathfindR_outputs_ashr_L_vs_E[[names]],
-                                                              top_terms = 10)+
-    scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-    scale_size(range = c(0.1, 2)) +
-    theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-          axis.text.y = element_text(color = "black", size = 3.5),
-          axis.text.x = element_text(color = "black", size = 3.5),
-          axis.title.x = element_text(size = 4.5, face = "bold"),
-          legend.key.size = unit(1.5, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 3.5, face = "bold"),
-          legend.text = element_text(size = 2.75))+
-    labs(title = paste0("Top 10 ", names,
-                        " terms enrichment dotplot - (", comparisons["ashr_L_vs_E"], ")"))
-  print(enrichment_dotplots_ashr_L_vs_E[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
-         path = paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", 
-                       names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-  
-  # clustered results
-  if (names %in% names(clustered_results_ashr_L_vs_E)) {
-    cat(blue("Trying clustered enrichment dotplot for", names, "\n"))
-    cluster_enrichment_dotplots_ashr_L_vs_E[[names]] = enrichment_chart(result_df = wrapped_clustered_pathfindR_outputs_ashr_L_vs_E[[names]][clustered_results_ashr_L_vs_E[[names]]$Status
-                                                                                                                                             == "Representative", ][1:10,],
-                                                                        top_terms = NULL,
-                                                                        plot_by_cluster = TRUE)+
-      scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-      scale_size(range = c(0.1, 2)) +
-      theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 3.5),
-            axis.text.x = element_text(color = "black", size = 3.5),
-            axis.title.x = element_text(size = 4.5, face = "bold"),
-            legend.key.size = unit(1.5, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 3.5, face = "bold"),
-            legend.text = element_text(size = 2.75))+
-      labs(title = paste0("Top 10 clustered ", names,
-                          " terms enrichment dotplot - (", comparisons["ashr_L_vs_E"], ")"))
-    print(cluster_enrichment_dotplots_ashr_L_vs_E[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
-           path = paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-}
-
-# Write out results in a comprehensive .xlsx file
-wb = createWorkbook()
-for(i in 1:length(clustered_results_ashr_L_vs_E)) {
-  addWorksheet(wb, names(clustered_results_ashr_L_vs_E)[i])
-  writeData(wb, names(clustered_results_ashr_L_vs_E)[i], clustered_results_ashr_L_vs_E[[i]])
-}
-saveWorkbook(wb, file = "Results/Pathways/ashr_L_vs_E/pathfindR/Comprehensive_pathfindR_output.xlsx",
-             overwrite = TRUE); rm(wb)
-
-# Representative terms
-wb2_names = names(clustered_results_ashr_L_vs_E)
-wb2 = createWorkbook()
-for(i in 1:length(clustered_results_ashr_L_vs_E)) {
-  addWorksheet(wb2, paste0(wb2_names[i], " - rep"))
-  writeData(wb2, paste0(wb2_names[i], " - rep"), 
-            clustered_results_ashr_L_vs_E[[i]][clustered_results_ashr_L_vs_E[[i]]$Status
-                                               == "Representative", ])
-}
-saveWorkbook(wb2, file = "Results/Pathways/ashr_L_vs_E/pathfindR/Representative_terms.xlsx",
-             overwrite = TRUE); rm(wb2)
-
-term_gene_heatmaps_ashr_L_vs_E = list()
-term_gene_graphs_ashr_L_vs_E = list()
-
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_L_vs_E)[i]
-  cat(blue("Trying term gene heatmap for", names, "\n"))
-  # term-gene heatmaps
-  if (nrow(wrapped_pathfindR_outputs_ashr_L_vs_E[[names]]) > 1) {
-    term_gene_heatmaps_ashr_L_vs_E[[names]] = term_gene_heatmap(result_df = wrapped_pathfindR_outputs_ashr_L_vs_E[[names]],
-                                                                genes_df = pathf_input_ashr_L_vs_E,
-                                                                num_terms = 10,
-                                                                use_description = TRUE,
-                                                                low = "darkblue",
-                                                                high = "red",
-                                                                mid = "white",
-                                                                pin_name_path = 'Biogrid')+
-      theme(plot.title = element_text(size = 4.5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 4),
-            axis.text.x = element_text(color = "black", size = 4,  vjust = 0.5),
-            axis.title.x = element_text(size = 5, face = "bold"),
-            legend.key.size = unit(3, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-            legend.text = element_text(size = 4),
-            #legend.title = element_text(hjust = 0.5),
-            legend.direction = "vertical") +
-      scale_fill_gradient2(name = "logFC",
-                           low = "darkblue", mid = "white", na.value = "white",
-                           high = "red") +
-      labs(title = paste0("Top 10 ", names, 
-                          " terms - differentially expressed genes heatmap (",
-                          comparisons["ashr_L_vs_E"], ")"),
-           fill = expression(log[2] ~ "FoldChange"))
-    #print(ggdraw(align_legend(term_gene_heatmaps_ashr_L_vs_E[[names]], hjust = 0.5)))
-    print(term_gene_heatmaps_ashr_L_vs_E[[names]])
-    ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
-           path = paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-  
-  # term-gene graphs
-  cat(blue("Trying term gene graph for", names, "\n"))
-  term_gene_graphs_ashr_L_vs_E[[names]] = term_gene_graph(result_df = pathfindR_outputs_ashr_L_vs_E[[names]],
-                                                          num_terms = 5,
-                                                          use_description = TRUE,
-                                                          node_size = "p_val")+
-    aes(max.overlaps = 5)+
-    scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          plot.background = element_rect(fill = "white"),
-          plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-          legend.text = element_text(size = 4),
-          #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
-    labs(title = paste0("Top 5 ", names, 
-                        " term - gene graph (",
-                        comparisons["ashr_L_vs_E"], ")"))
-  term_gene_graphs_ashr_L_vs_E[[names]]$layers = list(term_gene_graphs_ashr_L_vs_E[[names]]$layers[[1]], 
-                                                      term_gene_graphs_ashr_L_vs_E[[names]]$layers[[2]], 
-                                                      term_gene_graphs_ashr_L_vs_E[[names]]$layers[[4]])
-  print(term_gene_graphs_ashr_L_vs_E[[names]])
-  ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
-         path = paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", 
-                       names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-}
-
-# UpSet plots #####
-UpSet_plots_ashr_L_vs_E = list()
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_L_vs_E)[i]
-  cat(blue("Trying UpSet plot for", names, "\n"))
-  # UpSet plot
-  UpSet_plots_ashr_L_vs_E[[names]] = UpSet_plot(result_df = wrapped_pathfindR_outputs_ashr_L_vs_E[[names]],
-                                                genes_df = pathf_input_ashr_L_vs_E,
-                                                num_terms = 5,
-                                                use_description = TRUE,
-                                                low = "darkgreen",
-                                                high = "darkred",
-                                                mid = "white")+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          axis.text.y = element_text(size = 3),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 4, face = "bold"),
-          legend.text = element_text(size = 4),
-          legend.title.align = 0.5,
-          legend.direction = "vertical")+
-    ggupset::theme_combmatrix(combmatrix.panel.point.color.fill = "black",
-                              combmatrix.panel.point.size = 0.8,
-                              combmatrix.panel.line.size = 0.5)+
-    labs(fill = "logFC",
-         title = paste0("Top 5 ", names, 
-                        " term - UpSet plot (",
-                        comparisons["ashr_L_vs_E"], ")"))
-  tiff(paste0("Results/Pathways/ashr_L_vs_E/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
-  print(UpSet_plots_ashr_L_vs_E[[names]])
-  dev.off()
-}
-
-# ashr_LTNR_vs_ETNR #####
-# Preparing a pathfindR loop for enrichment analysis
-subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
-pathf_input_ashr_LTNR_vs_ETNR = ashr_dgea$ashr_LTNR_vs_ETNR %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
-  na.omit()
-
-# Preparing a pathfindR loop for enrichment analysis
-dirs_ashr_LTNR_vs_ETNR = paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", subdirs)
-pathfindR_outputs_ashr_LTNR_vs_ETNR = list()
-
-RNGversion("4.2.2")
-set.seed(123)
-for (i in 1:length(dirs_ashr_LTNR_vs_ETNR)){
-  pathfindR_outputs_ashr_LTNR_vs_ETNR[[i]] = run_pathfindR(pathf_input_ashr_LTNR_vs_ETNR, gene_sets = subdirs[i],
-                                                           p_val_threshold = p_val_threshold, convert2alias = FALSE,
-                                                           output_dir = dirs_ashr_LTNR_vs_ETNR[i], min_gset_size = min_gset_size,
-                                                           max_gset_size = max_gset_size, adj_method = adj_method,
-                                                           enrichment_threshold = enrichment_threshold,
-                                                           pin_name_path = pin_name_path, search_method = search_method,
-                                                           iterations = niter, n_processes = n_processes)
-  cat(paste0("Done with ", subdirs[i], "\n"))
-}
-names(pathfindR_outputs_ashr_LTNR_vs_ETNR) = subdirs
-
-# Perform hierarchical clustering on the results (average distance metric)
-# Bear in mind the algorithm time complexity is O(n^3)
-
-# Use a custom fast approach
-# Set up the number of cores to use
-nonzero_res = which(lapply(pathfindR_outputs_ashr_LTNR_vs_ETNR, nrow) != 0)
-cl <- makeCluster(length(nonzero_res))
-registerDoParallel(cl)
-
-timestamp()
-clustered_results_ashr_LTNR_vs_ETNR <- foreach(i = nonzero_res, .packages = c("pathfindR", "fastcluster")) %dopar% {
-  RNGversion("4.2.2")
-  set.seed(123)
-  source("R_Scripts/fast_pathfindR_hclust.R")
-  
-  # Perform clustering, handle errors
-  result <- cluster_enriched_terms_fast(pathfindR_outputs_ashr_LTNR_vs_ETNR[[i]], method = "hierarchical", plot_clusters_graph = FALSE,
-                                        use_description = TRUE, use_active_snw_genes = FALSE)
-  if (is.character(result) && result == "hclust impossible") {
-    return("hclust impossible")
-  } else {
-    return(result)
-  }
-}
-
-timestamp() # <0.5 mins
-stopCluster(cl)
-gc()
-
-names(clustered_results_ashr_LTNR_vs_ETNR) = names(nonzero_res)
-
-# Are there any null sets?
-clustered = which(clustered_results_ashr_LTNR_vs_ETNR != "hclust impossible")
-clustered_results_ashr_LTNR_vs_ETNR = clustered_results_ashr_LTNR_vs_ETNR[clustered]
-
-# Unlist
-for (i in 1:length(clustered_results_ashr_LTNR_vs_ETNR)) {
-  clustered_results_ashr_LTNR_vs_ETNR[[i]] = clustered_results_ashr_LTNR_vs_ETNR[[i]]$clustered_df
-}
-
-# Wrapping the text of terms with too many characters in their description
-wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR = pathfindR_outputs_ashr_LTNR_vs_ETNR
-for (i in nonzero_res){
-  wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[i]]$Term_Description = stringr::str_wrap(pathfindR_outputs_ashr_LTNR_vs_ETNR[[i]]$Term_Description, 
-                                                                                        width = 41)
-}
-rm(i)
-
-wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR = clustered_results_ashr_LTNR_vs_ETNR
-for (i in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR)){
-  wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR[[i]]$Term_Description = stringr::str_wrap(clustered_results_ashr_LTNR_vs_ETNR[[i]]$Term_Description, 
-                                                                                                  width = 41)
-}
-rm(i)
-
-enrichment_dotplots_ashr_LTNR_vs_ETNR = list()
-cluster_enrichment_dotplots_ashr_LTNR_vs_ETNR = list()
-
-# Producing dotplots with the results
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTNR_vs_ETNR)[i]
-  cat(blue("Trying enrichment dotplot for", names, "\n"))
-  # unclustered results
-  enrichment_dotplots_ashr_LTNR_vs_ETNR[[names]] = enrichment_chart(result_df = wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]],
-                                                                    top_terms = 10)+
-    scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-    scale_size(range = c(0.1, 2)) +
-    theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-          axis.text.y = element_text(color = "black", size = 3.5),
-          axis.text.x = element_text(color = "black", size = 3.5),
-          axis.title.x = element_text(size = 4.5, face = "bold"),
-          legend.key.size = unit(1.5, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 3.5, face = "bold"),
-          legend.text = element_text(size = 2.75))+
-    labs(title = paste0("Top 10 ", names,
-                        " terms enrichment dotplot - (", comparisons["ashr_LTNR_vs_ETNR"], ")"))
-  print(enrichment_dotplots_ashr_LTNR_vs_ETNR[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
-         path = paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", 
-                       names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-  
-  # clustered results
-  if (names %in% names(clustered_results_ashr_LTNR_vs_ETNR)) {
-    cat(blue("Trying clustered enrichment dotplot for", names, "\n"))
-    cluster_enrichment_dotplots_ashr_LTNR_vs_ETNR[[names]] = enrichment_chart(result_df = wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]][clustered_results_ashr_LTNR_vs_ETNR[[names]]$Status
-                                                                                                                                                         == "Representative", ][1:10,],
-                                                                              top_terms = NULL,
-                                                                              plot_by_cluster = TRUE)+
-      scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-      scale_size(range = c(0.1, 2)) +
-      theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 3.5),
-            axis.text.x = element_text(color = "black", size = 3.5),
-            axis.title.x = element_text(size = 4.5, face = "bold"),
-            legend.key.size = unit(1.5, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 3.5, face = "bold"),
-            legend.text = element_text(size = 2.75))+
-      labs(title = paste0("Top 10 clustered ", names,
-                          " terms enrichment dotplot - (", comparisons["ashr_LTNR_vs_ETNR"], ")"))
-    print(cluster_enrichment_dotplots_ashr_LTNR_vs_ETNR[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
-           path = paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-}
-
-# Write out results in a comprehensive .xlsx file
-wb = createWorkbook()
-for(i in 1:length(clustered_results_ashr_LTNR_vs_ETNR)) {
-  addWorksheet(wb, names(clustered_results_ashr_LTNR_vs_ETNR)[i])
-  writeData(wb, names(clustered_results_ashr_LTNR_vs_ETNR)[i], clustered_results_ashr_LTNR_vs_ETNR[[i]])
-}
-saveWorkbook(wb, file = "Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/Comprehensive_pathfindR_output.xlsx",
-             overwrite = TRUE); rm(wb)
-
-# Representative terms
-wb2_names = names(clustered_results_ashr_LTNR_vs_ETNR)
-wb2 = createWorkbook()
-for(i in 1:length(clustered_results_ashr_LTNR_vs_ETNR)) {
-  addWorksheet(wb2, paste0(wb2_names[i], " - rep"))
-  writeData(wb2, paste0(wb2_names[i], " - rep"), 
-            clustered_results_ashr_LTNR_vs_ETNR[[i]][clustered_results_ashr_LTNR_vs_ETNR[[i]]$Status
-                                                     == "Representative", ])
-}
-saveWorkbook(wb2, file = "Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/Representative_terms.xlsx",
-             overwrite = TRUE); rm(wb2)
-
-term_gene_heatmaps_ashr_LTNR_vs_ETNR = list()
-term_gene_graphs_ashr_LTNR_vs_ETNR = list()
-
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTNR_vs_ETNR)[i]
-  cat(blue("Trying term gene heatmap for", names, "\n"))
-  # term-gene heatmaps
-  if (nrow(wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]]) > 1) {
-    term_gene_heatmaps_ashr_LTNR_vs_ETNR[[names]] = term_gene_heatmap(result_df = wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]],
-                                                                      genes_df = pathf_input_ashr_LTNR_vs_ETNR,
-                                                                      num_terms = 10,
-                                                                      use_description = TRUE,
-                                                                      low = "darkblue",
-                                                                      high = "red",
-                                                                      mid = "white",
-                                                                      pin_name_path = 'Biogrid')+
-      theme(plot.title = element_text(size = 4.5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 4),
-            axis.text.x = element_text(color = "black", size = 4,  vjust = 0.5),
-            axis.title.x = element_text(size = 5, face = "bold"),
-            legend.key.size = unit(3, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-            legend.text = element_text(size = 4),
-            #legend.title = element_text(hjust = 0.5),
-            legend.direction = "vertical") +
-      scale_fill_gradient2(name = "logFC",
-                           low = "darkblue", mid = "white", na.value = "white",
-                           high = "red") +
-      labs(title = paste0("Top 10 ", names, 
-                          " terms - differentially expressed genes heatmap (",
-                          comparisons["ashr_LTNR_vs_ETNR"], ")"),
-           fill = expression(log[2] ~ "FoldChange"))
-    #print(ggdraw(align_legend(term_gene_heatmaps_ashr_LTNR_vs_ETNR[[names]], hjust = 0.5)))
-    print(term_gene_heatmaps_ashr_LTNR_vs_ETNR[[names]])
-    ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
-           path = paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-  
-  # term-gene graphs
-  cat(blue("Trying term gene graph for", names, "\n"))
-  term_gene_graphs_ashr_LTNR_vs_ETNR[[names]] = term_gene_graph(result_df = pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]],
-                                                                num_terms = 5,
-                                                                use_description = TRUE,
-                                                                node_size = "p_val")+
-    aes(max.overlaps = 5)+
-    scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          plot.background = element_rect(fill = "white"),
-          plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-          legend.text = element_text(size = 4),
-          #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
-    labs(title = paste0("Top 5 ", names, 
-                        " term - gene graph (",
-                        comparisons["ashr_LTNR_vs_ETNR"], ")"))
-  term_gene_graphs_ashr_LTNR_vs_ETNR[[names]]$layers = list(term_gene_graphs_ashr_LTNR_vs_ETNR[[names]]$layers[[1]], 
-                                                            term_gene_graphs_ashr_LTNR_vs_ETNR[[names]]$layers[[2]], 
-                                                            term_gene_graphs_ashr_LTNR_vs_ETNR[[names]]$layers[[4]])
-  print(term_gene_graphs_ashr_LTNR_vs_ETNR[[names]])
-  ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
-         path = paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", 
-                       names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-}
-
-# UpSet plots #####
-UpSet_plots_ashr_LTNR_vs_ETNR = list()
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTNR_vs_ETNR)[i]
-  cat(blue("Trying UpSet plot for", names, "\n"))
-  # UpSet plot
-  UpSet_plots_ashr_LTNR_vs_ETNR[[names]] = UpSet_plot(result_df = wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[names]],
-                                                      genes_df = pathf_input_ashr_LTNR_vs_ETNR,
-                                                      num_terms = 5,
-                                                      use_description = TRUE,
-                                                      low = "darkgreen",
-                                                      high = "darkred",
-                                                      mid = "white")+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          axis.text.y = element_text(size = 3),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 4, face = "bold"),
-          legend.text = element_text(size = 4),
-          legend.title.align = 0.5,
-          legend.direction = "vertical")+
-    ggupset::theme_combmatrix(combmatrix.panel.point.color.fill = "black",
-                              combmatrix.panel.point.size = 0.8,
-                              combmatrix.panel.line.size = 0.5)+
-    labs(fill = "logFC",
-         title = paste0("Top 5 ", names, 
-                        " term - UpSet plot (",
-                        comparisons["ashr_LTNR_vs_ETNR"], ")"))
-  tiff(paste0("Results/Pathways/ashr_LTNR_vs_ETNR/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
-  print(UpSet_plots_ashr_LTNR_vs_ETNR[[names]])
-  dev.off()
-}
-
-# ashr_LT_vs_ET #####
-# Preparing a pathfindR loop for enrichment analysis
-subdirs = c("Reactome", "BioCarta", "GO-BP", "GO-CC", "GO-MF", "KEGG")
-pathf_input_ashr_LT_vs_ET = ashr_dgea$ashr_LT_vs_ET %>%
-  dplyr::select(Gene.Symbol, log2FoldChange, padj) %>%
-  na.omit()
-
-# Preparing a pathfindR loop for enrichment analysis
-dirs_ashr_LT_vs_ET = paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", subdirs)
-pathfindR_outputs_ashr_LT_vs_ET = list()
-
-RNGversion("4.2.2")
-set.seed(123)
-for (i in 1:length(dirs_ashr_LT_vs_ET)){
-  pathfindR_outputs_ashr_LT_vs_ET[[i]] = run_pathfindR(pathf_input_ashr_LT_vs_ET, gene_sets = subdirs[i],
-                                                       p_val_threshold = p_val_threshold, convert2alias = FALSE,
-                                                       output_dir = dirs_ashr_LT_vs_ET[i], min_gset_size = min_gset_size,
-                                                       max_gset_size = max_gset_size, adj_method = adj_method,
-                                                       enrichment_threshold = enrichment_threshold,
-                                                       pin_name_path = pin_name_path, search_method = search_method,
-                                                       iterations = niter, n_processes = n_processes)
-  cat(paste0("Done with ", subdirs[i], "\n"))
-}
-names(pathfindR_outputs_ashr_LT_vs_ET) = subdirs
-
-# Perform hierarchical clustering on the results (average distance metric)
-# Bear in mind the algorithm time complexity is O(n^3)
-
-# Use a custom fast approach
-# Set up the number of cores to use
-nonzero_res = which(lapply(pathfindR_outputs_ashr_LT_vs_ET, nrow) != 0)
-cl <- makeCluster(length(nonzero_res))
-registerDoParallel(cl)
-
-timestamp()
-clustered_results_ashr_LT_vs_ET <- foreach(i = nonzero_res, .packages = c("pathfindR", "fastcluster")) %dopar% {
-  RNGversion("4.2.2")
-  set.seed(123)
-  source("R_Scripts/fast_pathfindR_hclust.R")
-  
-  # Perform clustering, handle errors
-  result <- cluster_enriched_terms_fast(pathfindR_outputs_ashr_LT_vs_ET[[i]], method = "hierarchical", plot_clusters_graph = FALSE,
-                                        use_description = TRUE, use_active_snw_genes = FALSE)
-  if (is.character(result) && result == "hclust impossible") {
-    return("hclust impossible")
-  } else {
-    return(result)
-  }
-}
-
-timestamp() # <0.5 mins
-stopCluster(cl)
-gc()
-
-names(clustered_results_ashr_LT_vs_ET) = names(nonzero_res)
-
-# Are there any null sets?
-clustered = which(clustered_results_ashr_LT_vs_ET != "hclust impossible")
-clustered_results_ashr_LT_vs_ET = clustered_results_ashr_LT_vs_ET[clustered]
-
-# Unlist
-for (i in 1:length(clustered_results_ashr_LT_vs_ET)) {
-  clustered_results_ashr_LT_vs_ET[[i]] = clustered_results_ashr_LT_vs_ET[[i]]$clustered_df
-}
-
-# Wrapping the text of terms with too many characters in their description
-wrapped_pathfindR_outputs_ashr_LT_vs_ET = pathfindR_outputs_ashr_LT_vs_ET
-for (i in nonzero_res){
-  wrapped_pathfindR_outputs_ashr_LT_vs_ET[[i]]$Term_Description = stringr::str_wrap(pathfindR_outputs_ashr_LT_vs_ET[[i]]$Term_Description, 
-                                                                                    width = 41)
-}
-rm(i)
-
-wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET = clustered_results_ashr_LT_vs_ET
-for (i in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET)){
-  wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET[[i]]$Term_Description = stringr::str_wrap(clustered_results_ashr_LT_vs_ET[[i]]$Term_Description, 
-                                                                                              width = 41)
-}
-rm(i)
-
-enrichment_dotplots_ashr_LT_vs_ET = list()
-cluster_enrichment_dotplots_ashr_LT_vs_ET = list()
-
-# Producing dotplots with the results
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LT_vs_ET)[i]
-  cat(blue("Trying enrichment dotplot for", names, "\n"))
-  # unclustered results
-  enrichment_dotplots_ashr_LT_vs_ET[[names]] = enrichment_chart(result_df = wrapped_pathfindR_outputs_ashr_LT_vs_ET[[names]],
-                                                                top_terms = 10)+
-    scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-    scale_size(range = c(0.1, 2)) +
-    theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-          axis.text.y = element_text(color = "black", size = 3.5),
-          axis.text.x = element_text(color = "black", size = 3.5),
-          axis.title.x = element_text(size = 4.5, face = "bold"),
-          legend.key.size = unit(1.5, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 3.5, face = "bold"),
-          legend.text = element_text(size = 2.75))+
-    labs(title = paste0("Top 10 ", names,
-                        " terms enrichment dotplot - (", comparisons["ashr_LT_vs_ET"], ")"))
-  print(enrichment_dotplots_ashr_LT_vs_ET[[names]])
-  ggsave(filename = paste0(names, "_top10_dotplot.tiff"),
-         path = paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", 
-                       names, "/"),
-         width = 2880, height = 1620, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-  
-  # clustered results
-  if (names %in% names(clustered_results_ashr_LT_vs_ET)) {
-    cat(blue("Trying clustered enrichment dotplot for", names, "\n"))
-    cluster_enrichment_dotplots_ashr_LT_vs_ET[[names]] = enrichment_chart(result_df = wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET[[names]][clustered_results_ashr_LT_vs_ET[[names]]$Status
-                                                                                                                                                 == "Representative", ][1:10,],
-                                                                          top_terms = NULL,
-                                                                          plot_by_cluster = TRUE)+
-      scale_color_gradient(low = "#fca4a4", high = "#fc0303")+
-      scale_size(range = c(0.1, 2)) +
-      theme(plot.title = element_text(size = 5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 3.5),
-            axis.text.x = element_text(color = "black", size = 3.5),
-            axis.title.x = element_text(size = 4.5, face = "bold"),
-            legend.key.size = unit(1.5, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 3.5, face = "bold"),
-            legend.text = element_text(size = 2.75))+
-      labs(title = paste0("Top 10 clustered ", names,
-                          " terms enrichment dotplot - (", comparisons["ashr_LT_vs_ET"], ")"))
-    print(cluster_enrichment_dotplots_ashr_LT_vs_ET[[names]])
-    ggsave(filename = paste0(names, "_top10_dotplot_clustered.tiff"),
-           path = paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-}
-
-# Write out results in a comprehensive .xlsx file
-wb = createWorkbook()
-for(i in 1:length(clustered_results_ashr_LT_vs_ET)) {
-  addWorksheet(wb, names(clustered_results_ashr_LT_vs_ET)[i])
-  writeData(wb, names(clustered_results_ashr_LT_vs_ET)[i], clustered_results_ashr_LT_vs_ET[[i]])
-}
-saveWorkbook(wb, file = "Results/Pathways/ashr_LT_vs_ET/pathfindR/Comprehensive_pathfindR_output.xlsx",
-             overwrite = TRUE); rm(wb)
-
-# Representative terms
-wb2_names = names(clustered_results_ashr_LT_vs_ET)
-wb2 = createWorkbook()
-for(i in 1:length(clustered_results_ashr_LT_vs_ET)) {
-  addWorksheet(wb2, paste0(wb2_names[i], " - rep"))
-  writeData(wb2, paste0(wb2_names[i], " - rep"), 
-            clustered_results_ashr_LT_vs_ET[[i]][clustered_results_ashr_LT_vs_ET[[i]]$Status
-                                                 == "Representative", ])
-}
-saveWorkbook(wb2, file = "Results/Pathways/ashr_LT_vs_ET/pathfindR/Representative_terms.xlsx",
-             overwrite = TRUE); rm(wb2)
-
-term_gene_heatmaps_ashr_LT_vs_ET = list()
-term_gene_graphs_ashr_LT_vs_ET = list()
-
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LT_vs_ET)[i]
-  cat(blue("Trying term gene heatmap for", names, "\n"))
-  # term-gene heatmaps
-  if (nrow(wrapped_pathfindR_outputs_ashr_LT_vs_ET[[names]]) > 1) {
-    term_gene_heatmaps_ashr_LT_vs_ET[[names]] = term_gene_heatmap(result_df = wrapped_pathfindR_outputs_ashr_LT_vs_ET[[names]],
-                                                                  genes_df = pathf_input_ashr_LT_vs_ET,
-                                                                  num_terms = 10,
-                                                                  use_description = TRUE,
-                                                                  low = "darkblue",
-                                                                  high = "red",
-                                                                  mid = "white",
-                                                                  pin_name_path = 'Biogrid')+
-      theme(plot.title = element_text(size = 4.5, face = "bold", vjust = 2, hjust = 0.5),
-            axis.text.y = element_text(color = "black", size = 4),
-            axis.text.x = element_text(color = "black", size = 4,  vjust = 0.5),
-            axis.title.x = element_text(size = 5, face = "bold"),
-            legend.key.size = unit(3, units = "mm"),
-            legend.spacing.y = unit(0.5, units = "mm"),
-            legend.spacing.x = unit(0.5, units = "mm"),
-            legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-            legend.text = element_text(size = 4),
-            #legend.title = element_text(hjust = 0.5),
-            legend.direction = "vertical") +
-      scale_fill_gradient2(name = "logFC",
-                           low = "darkblue", mid = "white", na.value = "white",
-                           high = "red") +
-      labs(title = paste0("Top 10 ", names, 
-                          " terms - differentially expressed genes heatmap (",
-                          comparisons["ashr_LT_vs_ET"], ")"),
-           fill = expression(log[2] ~ "FoldChange"))
-    #print(ggdraw(align_legend(term_gene_heatmaps_ashr_LT_vs_ET[[names]], hjust = 0.5)))
-    print(term_gene_heatmaps_ashr_LT_vs_ET[[names]])
-    ggsave(filename = paste0(names,
-                             "_top10_term_gene_heatmap.tiff"),
-           path = paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", 
-                         names, "/"),
-           width = 2880, height = 1620, device = 'tiff', units = "px",
-           dpi = 700, compression = "lzw")
-    dev.off()
-  }
-  
-  # term-gene graphs
-  cat(blue("Trying term gene graph for", names, "\n"))
-  term_gene_graphs_ashr_LT_vs_ET[[names]] = term_gene_graph(result_df = pathfindR_outputs_ashr_LT_vs_ET[[names]],
-                                                            num_terms = 5,
-                                                            use_description = TRUE,
-                                                            node_size = "p_val")+
-    aes(max.overlaps = 5)+
-    scale_size(range = c(1, 3)) +
-    suppressWarnings(ggraph::geom_node_text(ggplot2::aes_(label = ~name),  nudge_y = .1,
-                                            repel = TRUE, size = 2, max.overlaps = 10, check_overlap = T))+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          plot.background = element_rect(fill = "white"),
-          plot.subtitle = element_text(size = 4.5, face = "italic", hjust = 0.5, vjust = 1.5),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 5, face = "bold", hjust = 0.5),
-          legend.text = element_text(size = 4),
-          #legend.title = element_text(hjust = 0.5),
-          legend.direction = "vertical")+
-    labs(title = paste0("Top 5 ", names, 
-                        " term - gene graph (",
-                        comparisons["ashr_LT_vs_ET"], ")"))
-  term_gene_graphs_ashr_LT_vs_ET[[names]]$layers = list(term_gene_graphs_ashr_LT_vs_ET[[names]]$layers[[1]], 
-                                                        term_gene_graphs_ashr_LT_vs_ET[[names]]$layers[[2]], 
-                                                        term_gene_graphs_ashr_LT_vs_ET[[names]]$layers[[4]])
-  print(term_gene_graphs_ashr_LT_vs_ET[[names]])
-  ggsave(filename = paste0(names,
-                           "_top5_term_gene_graph.tiff"),
-         path = paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", 
-                       names, "/"),
-         width = 1920*2.5, height = 1080*2.5, device = 'tiff', units = "px",
-         dpi = 700, compression = "lzw")
-  dev.off()
-}
-
-# UpSet plots #####
-UpSet_plots_ashr_LT_vs_ET = list()
-for (i in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LT_vs_ET)[i]
-  cat(blue("Trying UpSet plot for", names, "\n"))
-  # UpSet plot
-  UpSet_plots_ashr_LT_vs_ET[[names]] = UpSet_plot(result_df = wrapped_pathfindR_outputs_ashr_LT_vs_ET[[names]],
-                                                  genes_df = pathf_input_ashr_LT_vs_ET,
-                                                  num_terms = 5,
-                                                  use_description = TRUE,
-                                                  low = "darkgreen",
-                                                  high = "darkred",
-                                                  mid = "white")+
-    theme(plot.title = element_text(size = 6, face = "bold", hjust = 0.5, vjust = 0.5),
-          axis.text.y = element_text(size = 3),
-          legend.key.size = unit(2, units = "mm"),
-          legend.spacing.y = unit(0.5, units = "mm"),
-          legend.spacing.x = unit(0.5, units = "mm"),
-          legend.title = element_text(size = 4, face = "bold"),
-          legend.text = element_text(size = 4),
-          legend.title.align = 0.5,
-          legend.direction = "vertical")+
-    ggupset::theme_combmatrix(combmatrix.panel.point.color.fill = "black",
-                              combmatrix.panel.point.size = 0.8,
-                              combmatrix.panel.line.size = 0.5)+
-    labs(fill = "logFC",
-         title = paste0("Top 5 ", names, 
-                        " term - UpSet plot (",
-                        comparisons["ashr_LT_vs_ET"], ")"))
-  tiff(paste0("Results/Pathways/ashr_LT_vs_ET/pathfindR/", names, "/",
-              names, "_top5_UpSet_plot.tiff"), 
-       width = 2880, height = 1620*4, res = 700, compression = "lzw")
-  print(UpSet_plots_ashr_LT_vs_ET[[names]])
   dev.off()
 }
 
@@ -2472,65 +1695,77 @@ recurrent = coldata$Patient.ID[coldata$Recurrence == "Recurrence"]
 non_recurrent = coldata$Patient.ID[coldata$Recurrence == "No recurrence"]
 z_exprs_gs = readRDS("Resources_and_environments/log2.norm.counts.plus1.rds")
 
+names(dirs_ashr_ETR_vs_ETNR) = names(dirs_ashr_LTR_vs_ETR) = 
+  names(dirs_ashr_LTR_vs_LTNR) = names(dirs_ashr_TR_vs_TNR) = subdirs
+
 # ashr_TR_vs_TNR #####
 nonzero_res = which(lapply(pathfindR_outputs_ashr_TR_vs_TNR, nrow) != 0)
 # Raw output
 raw_score_matrices_ashr_TR_vs_TNR = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_TR_vs_TNR)[p]
-  data = wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+for (p in nonzero_res) {
+  nm <- names(pathfindR_outputs_ashr_TR_vs_TNR)[p]
   
-  tiff(paste0(dirs_ashr_TR_vs_TNR[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_TR_vs_TNR[[names]] = score_terms(enrichment_table = data[rows,],
-                                        exp_mat = z_exprs_gs,
-                                        cases = recurrent,
-                                        use_description = TRUE, # default FALSE
-                                        label_samples = TRUE, # default = TRUE
-                                        case_title = "Recurrent",  # default = "Case"
-                                        control_title = "Non-recurrent", # default = "Control"
-                                        low = "darkblue", # default = "green"
-                                        mid = "white", # default = "black"
-                                        high = "darkred") # default = "red"
+  df <- wrapped_pathfindR_outputs_ashr_TR_vs_TNR[[p]] |>
+    dplyr::filter(dplyr::coalesce(Up_regulated, "") != "" |
+                    dplyr::coalesce(Down_regulated, "") != "")
+  
+  if (nrow(df) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(df)))
+  
+  png(file.path(dirs_ashr_TR_vs_TNR[nm], paste0(nm, "_per_sample_pathway_scores.png")),
+      width = 5760*1.5, height = 2160*1.5, res = 700)
+  
+  raw_score_matrices_ashr_TR_vs_TNR[[nm]] <- score_terms(
+    enrichment_table = df[rows, ],
+    exp_mat = z_exprs_gs,
+    cases = recurrent,
+    use_description = TRUE,
+    label_samples = TRUE,
+    case_title = "Recurrent",
+    control_title = "Non-recurrent",
+    low = "darkblue", mid = "white", high = "darkred"
+  )
   dev.off()
 }
 
+
 # Clustered terms
 clustered_score_matrices_ashr_TR_vs_TNR = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
+for (p in seq_along(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)) {
+  nm <- names(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)[p]
+  
+  dt <- wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR[[p]] |>
+    dplyr::filter(
+      dplyr::coalesce(Up_regulated, "") != "" |
+        dplyr::coalesce(Down_regulated, "") != ""
+    ) |>
     dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)[p]
-  tiff(paste0(dirs_ashr_TR_vs_TNR[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_TR_vs_TNR[[names]] = score_terms(enrichment_table = data[rows,], 
-                                              exp_mat = z_exprs_gs,
-                                              cases = recurrent,
-                                              use_description = TRUE, # default FALSE
-                                              label_samples = TRUE, # default = TRUE
-                                              case_title = "Recurrent",  # default = "Case"
-                                              control_title = "Non-recurrent", # default = "Control"
-                                              low = "darkblue", # default = "green"
-                                              mid = "white", # default = "black"
-                                              high = "darkred") # default = "red"
+  
+  if (nrow(dt) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(dt)))
+  
+  png(
+    file.path(dirs_ashr_TR_vs_TNR[nm],
+              paste0(nm, "_per_sample_pathway_scores_clustered.png")),
+    width  = 5760 * 1.5,
+    height = 2160 * 1.5,
+    res    = 700
+  )
+  
+  clustered_score_matrices_ashr_TR_vs_TNR[[nm]] <- score_terms(
+    enrichment_table = dt[rows, , drop = FALSE],
+    exp_mat          = z_exprs_gs,
+    cases            = recurrent,
+    use_description  = TRUE,
+    label_samples    = TRUE,
+    case_title       = "Recurrent",
+    control_title    = "Non-recurrent",
+    low              = "darkblue",
+    mid              = "white",
+    high             = "darkred"
+  )
   dev.off()
 }
 
@@ -2538,123 +1773,70 @@ for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_TR_vs_TNR)){
 nonzero_res = which(lapply(pathfindR_outputs_ashr_LTR_vs_ETR, nrow) != 0)
 # Raw output
 raw_score_matrices_ashr_LTR_vs_ETR = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTR_vs_ETR)[p]
-  data = wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+for (p in nonzero_res) {
+  nm <- names(pathfindR_outputs_ashr_LTR_vs_ETR)[p]
   
-  tiff(paste0(dirs_ashr_LTR_vs_ETR[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LTR_vs_ETR[[names]] = score_terms(enrichment_table = data[rows,],
-                                                            exp_mat = z_exprs_gs,
-                                                            cases = recurrent,
-                                                            use_description = TRUE, # default FALSE
-                                                            label_samples = TRUE, # default = TRUE
-                                                            case_title = "Recurrent",  # default = "Case"
-                                                            control_title = "Non-recurrent", # default = "Control"
-                                                            low = "darkblue", # default = "green"
-                                                            mid = "white", # default = "black"
-                                                            high = "darkred") # default = "red"
+  df <- wrapped_pathfindR_outputs_ashr_LTR_vs_ETR[[p]] |>
+    dplyr::filter(dplyr::coalesce(Up_regulated, "") != "" |
+                    dplyr::coalesce(Down_regulated, "") != "")
+  
+  if (nrow(df) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(df)))
+  
+  png(file.path(dirs_ashr_LTR_vs_ETR[nm], paste0(nm, "_per_sample_pathway_scores.png")),
+      width = 5760*1.5, height = 2160*1.5, res = 700)
+  
+  raw_score_matrices_ashr_LTR_vs_ETR[[nm]] <- score_terms(
+    enrichment_table = df[rows, ],
+    exp_mat = z_exprs_gs,
+    cases = recurrent,
+    use_description = TRUE,
+    label_samples = TRUE,
+    case_title = "Recurrent",
+    control_title = "Non-recurrent",
+    low = "darkblue", mid = "white", high = "darkred"
+  )
   dev.off()
 }
+
 
 # Clustered terms
 clustered_score_matrices_ashr_LTR_vs_ETR = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
-    dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)[p]
-  tiff(paste0(dirs_ashr_LTR_vs_ETR[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LTR_vs_ETR[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                                  exp_mat = z_exprs_gs,
-                                                                  cases = recurrent,
-                                                                  use_description = TRUE, # default FALSE
-                                                                  label_samples = TRUE, # default = TRUE
-                                                                  case_title = "Recurrent",  # default = "Case"
-                                                                  control_title = "Non-recurrent", # default = "Control"
-                                                                  low = "darkblue", # default = "green"
-                                                                  mid = "white", # default = "black"
-                                                                  high = "darkred") # default = "red"
-  dev.off()
-}
-
-# ashr_ETR_vs_ETNR #####
-nonzero_res = which(lapply(pathfindR_outputs_ashr_ETR_vs_ETNR, nrow) != 0)
-# Raw output
-raw_score_matrices_ashr_ETR_vs_ETNR = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
-  data = wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+for (p in seq_along(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)) {
+  nm <- names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR)[p]
   
-  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_ETR_vs_ETNR[[names]] = score_terms(enrichment_table = data[rows,],
-                                                             exp_mat = z_exprs_gs,
-                                                             cases = recurrent,
-                                                             use_description = TRUE, # default FALSE
-                                                             label_samples = TRUE, # default = TRUE
-                                                             case_title = "Recurrent",  # default = "Case"
-                                                             control_title = "Non-recurrent", # default = "Control"
-                                                             low = "darkblue", # default = "green"
-                                                             mid = "white", # default = "black"
-                                                             high = "darkred") # default = "red"
-  dev.off()
-}
-
-# Clustered terms
-clustered_score_matrices_ashr_ETR_vs_ETNR = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
+  dt <- wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_ETR[[p]] |>
+    dplyr::filter(
+      dplyr::coalesce(Up_regulated, "") != "" |
+        dplyr::coalesce(Down_regulated, "") != ""
+    ) |>
     dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
-  tiff(paste0(dirs_ashr_ETR_vs_ETNR[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_ETR_vs_ETNR[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                                   exp_mat = z_exprs_gs,
-                                                                   cases = recurrent,
-                                                                   use_description = TRUE, # default FALSE
-                                                                   label_samples = TRUE, # default = TRUE
-                                                                   case_title = "Recurrent",  # default = "Case"
-                                                                   control_title = "Non-recurrent", # default = "Control"
-                                                                   low = "darkblue", # default = "green"
-                                                                   mid = "white", # default = "black"
-                                                                   high = "darkred") # default = "red"
+  
+  if (nrow(dt) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(dt)))
+  
+  png(
+    file.path(dirs_ashr_LTR_vs_ETR[nm],
+              paste0(nm, "_per_sample_pathway_scores_clustered.png")),
+    width  = 5760 * 1.5,
+    height = 2160 * 1.5,
+    res    = 700
+  )
+  
+  clustered_score_matrices_ashr_LTR_vs_ETR[[nm]] <- score_terms(
+    enrichment_table = dt[rows, , drop = FALSE],
+    exp_mat          = z_exprs_gs,
+    cases            = recurrent,
+    use_description  = TRUE,
+    label_samples    = TRUE,
+    case_title       = "Recurrent",
+    control_title    = "Non-recurrent",
+    low              = "darkblue",
+    mid              = "white",
+    high             = "darkred"
+  )
   dev.off()
 }
 
@@ -2662,252 +1844,146 @@ for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)){
 nonzero_res = which(lapply(pathfindR_outputs_ashr_LTR_vs_LTNR, nrow) != 0)
 # Raw output
 raw_score_matrices_ashr_LTR_vs_LTNR = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
-  data = wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+for (p in nonzero_res) {
+  nm <- names(pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
   
-  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LTR_vs_LTNR[[names]] = score_terms(enrichment_table = data[rows,],
-                                                             exp_mat = z_exprs_gs,
-                                                             cases = recurrent,
-                                                             use_description = TRUE, # default FALSE
-                                                             label_samples = TRUE, # default = TRUE
-                                                             case_title = "Recurrent",  # default = "Case"
-                                                             control_title = "Non-recurrent", # default = "Control"
-                                                             low = "darkblue", # default = "green"
-                                                             mid = "white", # default = "black"
-                                                             high = "darkred") # default = "red"
+  df <- wrapped_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]] |>
+    dplyr::filter(dplyr::coalesce(Up_regulated, "") != "" |
+                    dplyr::coalesce(Down_regulated, "") != "")
+  
+  if (nrow(df) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(df)))
+  
+  png(file.path(dirs_ashr_LTR_vs_LTNR[nm], paste0(nm, "_per_sample_pathway_scores.png")),
+      width = 5760*1.5, height = 2160*1.5, res = 700)
+  
+  raw_score_matrices_ashr_LTR_vs_LTNR[[nm]] <- score_terms(
+    enrichment_table = df[rows, ],
+    exp_mat = z_exprs_gs,
+    cases = recurrent,
+    use_description = TRUE,
+    label_samples = TRUE,
+    case_title = "Recurrent",
+    control_title = "Non-recurrent",
+    low = "darkblue", mid = "white", high = "darkred"
+  )
   dev.off()
 }
+
 
 # Clustered terms
 clustered_score_matrices_ashr_LTR_vs_LTNR = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
+for (p in seq_along(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)) {
+  nm <- names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
+  
+  dt <- wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR[[p]] |>
+    dplyr::filter(
+      dplyr::coalesce(Up_regulated, "") != "" |
+        dplyr::coalesce(Down_regulated, "") != ""
+    ) |>
     dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_LTR_vs_LTNR)[p]
-  tiff(paste0(dirs_ashr_LTR_vs_LTNR[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LTR_vs_LTNR[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                                   exp_mat = z_exprs_gs,
-                                                                   cases = recurrent,
-                                                                   use_description = TRUE, # default FALSE
-                                                                   label_samples = TRUE, # default = TRUE
-                                                                   case_title = "Recurrent",  # default = "Case"
-                                                                   control_title = "Non-recurrent", # default = "Control"
-                                                                   low = "darkblue", # default = "green"
-                                                                   mid = "white", # default = "black"
-                                                                   high = "darkred") # default = "red"
+  
+  if (nrow(dt) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(dt)))
+  
+  png(
+    file.path(dirs_ashr_LTR_vs_LTNR[nm],
+              paste0(nm, "_per_sample_pathway_scores_clustered.png")),
+    width  = 5760 * 1.5,
+    height = 2160 * 1.5,
+    res    = 700
+  )
+  
+  clustered_score_matrices_ashr_LTR_vs_LTNR[[nm]] <- score_terms(
+    enrichment_table = dt[rows, , drop = FALSE],
+    exp_mat          = z_exprs_gs,
+    cases            = recurrent,
+    use_description  = TRUE,
+    label_samples    = TRUE,
+    case_title       = "Recurrent",
+    control_title    = "Non-recurrent",
+    low              = "darkblue",
+    mid              = "white",
+    high             = "darkred"
+  )
   dev.off()
 }
 
-# ashr_L_vs_E #####
-nonzero_res = which(lapply(pathfindR_outputs_ashr_L_vs_E, nrow) != 0)
+# ashr_ETR_vs_ETNR #####
+nonzero_res = which(lapply(pathfindR_outputs_ashr_ETR_vs_ETNR, nrow) != 0)
 # Raw output
-raw_score_matrices_ashr_L_vs_E = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_L_vs_E)[p]
-  data = wrapped_pathfindR_outputs_ashr_L_vs_E[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+raw_score_matrices_ashr_ETR_vs_ETNR = list()
+for (p in nonzero_res) {
+  nm <- names(pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
   
-  tiff(paste0(dirs_ashr_L_vs_E[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_L_vs_E[[names]] = score_terms(enrichment_table = data[rows,],
-                                                        exp_mat = z_exprs_gs,
-                                                        cases = recurrent,
-                                                        use_description = TRUE, # default FALSE
-                                                        label_samples = TRUE, # default = TRUE
-                                                        case_title = "Recurrent",  # default = "Case"
-                                                        control_title = "Non-recurrent", # default = "Control"
-                                                        low = "darkblue", # default = "green"
-                                                        mid = "white", # default = "black"
-                                                        high = "darkred") # default = "red"
+  df <- wrapped_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]] |>
+    dplyr::filter(dplyr::coalesce(Up_regulated, "") != "" |
+                    dplyr::coalesce(Down_regulated, "") != "")
+  
+  if (nrow(df) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(df)))
+  
+  png(file.path(dirs_ashr_ETR_vs_ETNR[nm], paste0(nm, "_per_sample_pathway_scores.png")),
+      width = 5760*1.5, height = 2160*1.5, res = 700)
+  
+  raw_score_matrices_ashr_ETR_vs_ETNR[[nm]] <- score_terms(
+    enrichment_table = df[rows, ],
+    exp_mat = z_exprs_gs,
+    cases = recurrent,
+    use_description = TRUE,
+    label_samples = TRUE,
+    case_title = "Recurrent",
+    control_title = "Non-recurrent",
+    low = "darkblue", mid = "white", high = "darkred"
+  )
   dev.off()
 }
+
 
 # Clustered terms
-clustered_score_matrices_ashr_L_vs_E = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_L_vs_E)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_L_vs_E[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
-    dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_L_vs_E)[p]
-  tiff(paste0(dirs_ashr_L_vs_E[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_L_vs_E[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                              exp_mat = z_exprs_gs,
-                                                              cases = recurrent,
-                                                              use_description = TRUE, # default FALSE
-                                                              label_samples = TRUE, # default = TRUE
-                                                              case_title = "Recurrent",  # default = "Case"
-                                                              control_title = "Non-recurrent", # default = "Control"
-                                                              low = "darkblue", # default = "green"
-                                                              mid = "white", # default = "black"
-                                                              high = "darkred") # default = "red"
-  dev.off()
-}
-
-# ashr_LTNR_vs_ETNR #####
-nonzero_res = which(lapply(pathfindR_outputs_ashr_LTNR_vs_ETNR, nrow) != 0)
-# Raw output
-raw_score_matrices_ashr_LTNR_vs_ETNR = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LTNR_vs_ETNR)[p]
-  data = wrapped_pathfindR_outputs_ashr_LTNR_vs_ETNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
+clustered_score_matrices_ashr_ETR_vs_ETNR = list()
+for (p in seq_along(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)) {
+  nm <- names(wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR)[p]
   
-  tiff(paste0(dirs_ashr_LTNR_vs_ETNR[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LTNR_vs_ETNR[[names]] = score_terms(enrichment_table = data[rows,],
-                                                              exp_mat = z_exprs_gs,
-                                                              cases = recurrent,
-                                                              use_description = TRUE, # default FALSE
-                                                              label_samples = TRUE, # default = TRUE
-                                                              case_title = "Recurrent",  # default = "Case"
-                                                              control_title = "Non-recurrent", # default = "Control"
-                                                              low = "darkblue", # default = "green"
-                                                              mid = "white", # default = "black"
-                                                              high = "darkred") # default = "red"
-  dev.off()
-}
-
-# Clustered terms
-clustered_score_matrices_ashr_LTNR_vs_ETNR = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
+  dt <- wrapped_clustered_pathfindR_outputs_ashr_ETR_vs_ETNR[[p]] |>
+    dplyr::filter(
+      dplyr::coalesce(Up_regulated, "") != "" |
+        dplyr::coalesce(Down_regulated, "") != ""
+    ) |>
     dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_LTNR_vs_ETNR)[p]
-  tiff(paste0(dirs_ashr_LTNR_vs_ETNR[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LTNR_vs_ETNR[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                                    exp_mat = z_exprs_gs,
-                                                                    cases = recurrent,
-                                                                    use_description = TRUE, # default FALSE
-                                                                    label_samples = TRUE, # default = TRUE
-                                                                    case_title = "Recurrent",  # default = "Case"
-                                                                    control_title = "Non-recurrent", # default = "Control"
-                                                                    low = "darkblue", # default = "green"
-                                                                    mid = "white", # default = "black"
-                                                                    high = "darkred") # default = "red"
-  dev.off()
-}
-
-# ashr_LT_vs_ET #####
-nonzero_res = which(lapply(pathfindR_outputs_ashr_LT_vs_ET, nrow) != 0)
-# Raw output
-raw_score_matrices_ashr_LT_vs_ET = list()
-for (p in nonzero_res){
-  names = names(pathfindR_outputs_ashr_LT_vs_ET)[p]
-  data = wrapped_pathfindR_outputs_ashr_LT_vs_ET[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
   
-  tiff(paste0(dirs_ashr_LT_vs_ET[p], "/",
-              names, "_per_sample_pathway_scores.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  raw_score_matrices_ashr_LT_vs_ET[[names]] = score_terms(enrichment_table = data[rows,],
-                                                          exp_mat = z_exprs_gs,
-                                                          cases = recurrent,
-                                                          use_description = TRUE, # default FALSE
-                                                          label_samples = TRUE, # default = TRUE
-                                                          case_title = "Recurrent",  # default = "Case"
-                                                          control_title = "Non-recurrent", # default = "Control"
-                                                          low = "darkblue", # default = "green"
-                                                          mid = "white", # default = "black"
-                                                          high = "darkred") # default = "red"
-  dev.off()
-}
-
-# Clustered terms
-clustered_score_matrices_ashr_LT_vs_ET = list()
-for (p in 1:length(wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET)){
-  data = wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET[[p]] %>%
-    dplyr::filter(Up_regulated != "" | Down_regulated != "") %>%
-    dplyr::filter(Status == "Representative")
-  if (nrow(data) < 2) {
-    next
-  } else if (nrow(data) < 10) {
-    rows = 1:nrow(data)
-  } else {
-    rows = c(1:10)
-  }
-  names = names(wrapped_clustered_pathfindR_outputs_ashr_LT_vs_ET)[p]
-  tiff(paste0(dirs_ashr_LT_vs_ET[p], "/",
-              names, "_per_sample_pathway_scores_clustered.tiff"), 
-       width = 5760*1.5, height = 2160*1.5, res = 700, compression = "lzw")
-  clustered_score_matrices_ashr_LT_vs_ET[[names]] = score_terms(enrichment_table = data[rows,], 
-                                                                exp_mat = z_exprs_gs,
-                                                                cases = recurrent,
-                                                                use_description = TRUE, # default FALSE
-                                                                label_samples = TRUE, # default = TRUE
-                                                                case_title = "Recurrent",  # default = "Case"
-                                                                control_title = "Non-recurrent", # default = "Control"
-                                                                low = "darkblue", # default = "green"
-                                                                mid = "white", # default = "black"
-                                                                high = "darkred") # default = "red"
+  if (nrow(dt) < 2L) next
+  
+  rows <- seq_len(min(10L, nrow(dt)))
+  
+  png(
+    file.path(dirs_ashr_ETR_vs_ETNR[nm],
+              paste0(nm, "_per_sample_pathway_scores_clustered.png")),
+    width  = 5760 * 1.5,
+    height = 2160 * 1.5,
+    res    = 700
+  )
+  
+  clustered_score_matrices_ashr_ETR_vs_ETNR[[nm]] <- score_terms(
+    enrichment_table = dt[rows, , drop = FALSE],
+    exp_mat          = z_exprs_gs,
+    cases            = recurrent,
+    use_description  = TRUE,
+    label_samples    = TRUE,
+    case_title       = "Recurrent",
+    control_title    = "Non-recurrent",
+    low              = "darkblue",
+    mid              = "white",
+    high             = "darkred"
+  )
   dev.off()
 }
 
 # Clean
-rm(clustered, data); gc()
+rm(nm, dt); gc()
 
 # Pathway results processing for tabular presentation #####
 # ORA
@@ -2980,10 +2056,7 @@ pathfindR_sheets_names <- c("Reactome", "BioCarta", "GO-BP",
 pathfindR_results <- list(pathfindR_outputs_ashr_TR_vs_TNR,
                           pathfindR_outputs_ashr_LTR_vs_ETR,
                           pathfindR_outputs_ashr_ETR_vs_ETNR,
-                          pathfindR_outputs_ashr_LTR_vs_LTNR,
-                          pathf_input_ashr_L_vs_E,
-                          pathf_input_ashr_LTNR_vs_ETNR,
-                          pathf_input_ashr_LT_vs_ET)
+                          pathfindR_outputs_ashr_LTR_vs_LTNR)
 names(pathfindR_results) <- names(ashr_dgea)
 
 for (j in seq_along(pathfindR_results)) {

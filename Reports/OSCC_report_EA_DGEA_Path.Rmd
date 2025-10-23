@@ -3,7 +3,7 @@ title: "OSCC RNA-seq analysis"
 author: "Aris Sionakidis"
 date: "`r Sys.Date()`"
 abstract: >
-  A brief presentation of our current work in OSCC RNA-seq analysis. There are three main sections: Exploratory analysis, Differential Gene Expression Analysis (DGEA) and pathway analysis.
+  A presentation of our current work in OSCC RNA-seq analysis. There are four main sections: Raw data quality control, Exploratory analysis, Differential Gene Expression Analysis (DGEA) and Pathway analysis.
 output: 
   html_document:
     fig.width : 12
@@ -267,7 +267,7 @@ cat('
   <h3>Abbreviations</h3>
   <ul>
     <li><abbr><b>T</b></abbr>: Tumor</li>
-    <li><abbr><b>C</b></abbr>: Control</li>
+    <!--<li><abbr><b>C</b></abbr>: Control</li>-->
     <li><abbr><b>R</b></abbr>: Recurrence</li>
     <li><abbr><b>NR</b></abbr>: No recurrence</li>
     <li><abbr><b>L</b></abbr>: Late-Stage</li>
@@ -276,9 +276,9 @@ cat('
     <li><abbr><b>LTR_vs_ETR</b></abbr>: Late-Stage Recurrent Tumors vs. Early-Stage Recurrent Tumors</li>
     <li><abbr><b>ETR_vs_ETNR</b></abbr>: Early-Stage Recurrent Tumors vs. Early-Stage Non-recurrent Tumors</li>
     <li><abbr><b>LTR_vs_LTNR</b></abbr>: Late-Stage Recurrent Tumors vs. Late-Stage Non-recurrent Tumors</li>
-    <li><abbr><b>L_vs_E</b></abbr>: Late-Stage Samples vs. Early-Stage Samples (averaged across recurrence)</li>
+    <!--<li><abbr><b>L_vs_E</b></abbr>: Late-Stage Samples vs. Early-Stage Samples (averaged across recurrence)</li>
     <li><abbr><b>LTNR_vs_ETNR</b></abbr>: Late-Stage Non-recurrent Tumors vs. Early-Stage Non-recurrent Tumors</li>
-    <li><abbr><b>LT_vs_ET</b></abbr>: Late-Stage Tumors vs. Early-Stage Tumors</li>
+    <li><abbr><b>LT_vs_ET</b></abbr>: Late-Stage Tumors vs. Early-Stage Tumors</li>-->
   </ul>
 </div>
 
@@ -287,12 +287,49 @@ cat('
 <ol>
   <li>Upload raw sequences in [Kraken2](https://ccb.jhu.edu/software/kraken2/) for examining taxonomy issues.</li>
   <li>Run the <b>nextflow</b> [nf-core rnaseq](https://nf-co.re/rnaseq/3.14.0/) pipeline with default parameters on the Aristotle HPC cluster (<b>for single-end, NOT paired-end data</b>).</li>
-  <li>Inspect the quality control reports poduced by nextflow.</li>
+  <li>Inspect the quality control reports produced by nextflow.</li>
   <li>Perform exploratory analysis in R.</li>
   <li>Perform Differential Gene Expression Analysis (DGEA) in R.</li>
   <li>Perform pathway analysis in R.</li>
   <li>Next steps ?</li>
 </ol>
+
+# Raw data quality control
+
+## MultiQC
+MultiQC is looking generally good with respect to most tests.Sequence duplicattion yellow and red status warnings are raised but these can be expected in RNA-seq. The <b>GC-content</b> plot is one point of concern:
+
+<details><summary>Plot before trimming by trimgalore</summary>
+![](`r paste0(getwd(),"/png_exploratory/fastqc_per_sequence_gc_content_plot.png")`)
+</details>
+
+<ul>
+  <li><b>At 60%:</b> The small peaks are COHTN-13, COHTC-58 and COHTN-12.</li>
+  <li><b>At 65-70%:</b> Peaks are from COHTN-13, COHTC-16, COHTN-6, COHTN-3, COHTC-58.</li>
+</ul>
+
+<details><summary>Plot after trimming by trimgalore</summary>
+![](`r paste0(getwd(),"/png_exploratory/fastqc_trimmed_per_sequence_gc_content_plot.png")`)
+</details>
+
+<ul>
+  <li><b>At 60-65%:</b> The small peaks are COHTN-13, COHTC-58 and some more COHTC samples, but with lower peaks.</li>
+</ul>
+
+Therefore, quite a few of the normal samples (given their total is 8) look problematic (also in exploratory plots later). 
+
+When looking at over-represented sequences in the multiQC report, the following is highlighted:
+
+1. <b>TCGCACATTCCGCTTCTACCGGGGGGGTCGAGCTGAGTGGATGCGAATCT</b>, 53 samples. This sequence is a synthetic oligonucleotide contaminant (aptamer ‘signaling polynucleotide’), matching [SEQ ID NO: 2 from US 10,344,319 B2](https://patents.google.com/patent/US10344319B2/en). It's most likely a contamination of some kind that is a "no-hit" in FastQC reports.
+
+2. <b>CTGGAGTCTTGGAAGCTTGACTACCCTACGTTCTCCTACAAATGGACCTT</b>, 38 samples. A recurring contaminant/adapter-derived fragment seen across many datasets ([link 1](https://files.ega-archive.org/EGAF00000772066/), [link 2](https://bioinformatics.ccr.cancer.gov/docs/bioinformatics-for-beginners-2025/data/hcc1395_raw_fastqc/hcc1395_tumor_rep1_R1_fastqc.html), [link 3](https://faryabi16.pmacs.upenn.edu/wugb/2023-07-05/accessories/HPAP-103_alpha_107444_FGC2386_s_2_TATGGCAC/HPAP-103_alpha_107444_FGC2386_s_2_TATGGCAC_trimmed_fastqc.html)).
+
+## Kraken2 results
+I used the original 80 ``fastq.gz`` files to run Kraken2 on the Galaxy server for taxonomy analysis. Overall, there were 1.6% unclassified reads. When looking at the classified reads, 96.85% are human. The plot below is a bar chart with the most abundant taxa IDs mapped to our sequences across all samples (<b>excluding Homo sapiens which is the dominant</b>). 
+
+![](`r paste0(getwd(),"/png_exploratory/taxa_bar_chart.png")`)
+
+Given the above, we proceeded with the downstream analysis, without taking any "correcting" action.
 
 # Exploratory analysis
 ## Preprocessing
@@ -321,8 +358,10 @@ Firstly we import and clean up the raw count files:
   <!--<li>We add a <u>final filtering step</u> using the ``filterByExpr()`` function of <em>edgeR</em> to remove genes which do not have "enough statistical power" for differences in recurrence in our data: <b>38339 &#8594; 34049</b> features.</li>-->
 </ol>
 
-## Creating the DESeq2 dataset
-We used a triple interaction term for the DESeq dataset and subsequently our DGEA. The triple interaction term involves all possible interactions between <b>sample type (tumor/normal), recurrence (recurrence/no recurrence) and binned tumor stage (early/late)</b>.
+## Creating the DESeq2 dataset for QC
+We used a triple interaction term for the original DESeq dataset. The triple interaction term involves all possible interactions between <b>sample type (tumor/normal), recurrence (recurrence/no recurrence) and binned tumor stage (early/late)</b>. 
+
+<b>This object is used only for the exploratory analysis and not for the actual DGEA.</b>
 
 ```{r deseq, echo=TRUE, eval=FALSE}
 dds <- DESeqDataSetFromMatrix(countData = summed_counts,
@@ -331,7 +370,7 @@ dds <- DESeqDataSetFromMatrix(countData = summed_counts,
 ```
 
 ## Count normalization
-In order to normalize the raw counts, we use <em>DESeq2</em>'s approach with ``estimateSizeFactors()`` (also called the geometric mean method). We additionaly transform the data by:
+In order to normalize the raw counts, we use <em>DESeq2</em>'s approach with ``estimateSizeFactors()`` (also called the geometric mean method). We additionally transform the data by:
 <ol>
   <li>adding a <b>pseudocount</b> selected via a [data-driven way](https://www.biorxiv.org/content/10.1101/404962v1.full) (in our case it is 1)</li>
   <li>$\log_2$-transformation</li>
@@ -339,7 +378,7 @@ In order to normalize the raw counts, we use <em>DESeq2</em>'s approach with ``e
 </ol>
 
 ## Count density plots
-The density curves of the raw counts of each sample (each sample's density curve is drawn with a different color) is shown on the figure below (x-axis is capped at 30).
+The density curves of the raw counts of each sample (each sample's density curve is drawn with a different color) is shown on the figure below (x-axis is capped at 30). These plots illustrate the frequencies of different count values in samples. We generally see low counts dominating the distributions, as expected in RNA-seq data.
 
 ![](`r paste0(getwd(),"/png_exploratory/OSCC_filtered_read_counts_color_densities_xlim30.png")`)
 
@@ -351,25 +390,25 @@ The two plots show that regardless of transformation the samples have similar di
 
 ## Additional exploratory plots
 ### VST and rlog
-<b>Variance-stabilizing transformation (vst)</b> and <b>regularized logarithmic (rlog)</b> transformation are two types of transformation for RAN-seq counts included in DESeq2, to improve visualizations. 
-<!-- We use both of them here for illustrative purposes, but later on we either use the raw counts or the standardized $\log_2$-transformed data. -->
+<b>Variance-stabilizing transformation (vst)</b> and <b>regularized logarithmic (rlog)</b> transformation are two types of transformation for RNA-seq counts included in DESeq2, to improve visualizations. 
+We use both of them here for exploratory purposes, but later on we either use the raw counts or the standardized $\log_2$-transformed data.
 
 ![](`r paste0(getwd(),"/png_exploratory/meanSdPlot.png")`)
 
-In the plots below, each point represents a feature. The plots illustrate how the st.deviation (and by extension the variance) of each feature is affected by the magnitude of the mean value for the same feature (in other words, what's the relationship between variance and mean). This is a known problem in RNA-seq (particularly in raw counts) called <b>overdispersion</b>: the variance of the counts is significantly larger than the mean. Each of these three transformations seek to circumvent this issue. Each do it to a different degree.
+In the plots above, each point represents a feature. The plots illustrate **how** the st.deviation (and by extension the variance) of each feature is affected by the magnitude of the mean value for the same feature (in other words, what's the relationship between variance and mean). This is a known problem in RNA-seq (particularly in raw counts) called <b>overdispersion</b>: the variance of the counts is significantly larger than the mean. Each of these three transformations seeks to circumvent this issue. Each does it to a different degree.
 
 The $\log_2$-transformation is achieving low variance for low counts, lower variance for high counts, but high variance for median counts which is not ideal. The <em>rlog</em> has a few outliers in the high range and more in the mid-range. The <em>vst</em> achieves a smooth transition from low to higher counts.
 
-Below we have three heatmaps which illustrate the expression of the top 50 genes (in terms of mean values).
+Below we have three heatmaps which illustrate the expression of the top 50 genes (top 50 highest mean values), for the three different transformations. They are only produced for exploratory purposes. No clear patterns can be found, but that is not necessarily indicative of the relationships between expression and recurrence. The <em>rlog</em> plot is full blue, because of a couple of outliers.
 
+<details><summary>Expand heatmaps</summary>
 ![](`r paste0(getwd(),"/png_exploratory/top50_heatmap_log2(norm.counts+1).png")`)
 ![](`r paste0(getwd(),"/png_exploratory/top50_heatmap_rlog.png")`)
 ![](`r paste0(getwd(),"/png_exploratory/top50_heatmap_vst.png")`)
-
-No clear patterns can be found, but that is not necessarily indicative of the relationships between expression and recurrence. The <em>rlog</em> plot is full blue, because of a couple of outliers.
+</details>
 
 ### Heatmaps of distances
-Euclidean distances in the case of <em>vst</em>-transformed data and Poisson distances in the case of raw counts were used to get an overview of similarities across samples and create heatmaps.
+Higher distance between two samples translates to dissimilarity. Euclidean distances in the case of <em>vst</em>-transformed data and Poisson distances in the case of raw counts were used to get an overview of similarities across samples and create heatmaps. The two distinct distance metrics are used because they are more appropriate for each data type: vst-transformed data are homoskedastic and roughly in $\log2$-scale, so the Euclidean distance is appropriate, while raw counts are assumed to follow a negative binomial distribution for which Poisson distance is more appropriate.
 
 ![](`r paste0(getwd(),"/png_exploratory/sample_distance_heatmap_vst.png")`)
 
@@ -379,32 +418,56 @@ This plot indicates <u>COHTN-13 is a possible outlier</u>. Otherwise samples are
 
 The Poisson distances also split the samples into two groups with similar patterns. There is a <b>mix of all three main variables</b> in the first large group (purple square in the left of the plot). In the second smaller group, there is mix of <b>late recurrent samples and early non-recurrent samples</b>, which are <u>almost</u> all tumors.
 
-Two ways to measure whether the clusterings are similar are the [Adjusted Rand Index (ARI)](https://www.sciencedirect.com/topics/computer-science/adjusted-rand-index) and the [Normalized Mutual Information (NMI)](https://course.ccs.neu.edu/cs6140sp15/7_locality_cluster/Assignment-6/NMI.pdf), however, recently [this](https://www.nature.com/articles/s41598-024-59073-9) was published and advises against using the NMI especially for larger numbers of groups.
+<!--Two ways to measure whether the clusterings are similar are the [Adjusted Rand Index (ARI)](https://www.sciencedirect.com/topics/computer-science/adjusted-rand-index) and the [Normalized Mutual Information (NMI)](https://course.ccs.neu.edu/cs6140sp15/7_locality_cluster/Assignment-6/NMI.pdf), however, recently [this](https://www.nature.com/articles/s41598-024-59073-9) was published and advises against using the NMI especially for larger numbers of groups.-->
 
-Anyway, the ARI between the two groups is <b>~88%</b>, meaning the patterns uncovered by Poisson distance clustering in the raw counts and Euclidean distance clustering in the <em>vst</em>-transformed data are <u>very similar</u>.
+A quantitative way to measure whether the clusterings are similar is the [Adjusted Rand Index (ARI)](https://www.sciencedirect.com/topics/computer-science/adjusted-rand-index). The ARI between the two groups is <b>~88%</b>, meaning the patterns uncovered by Poisson distance clustering in the raw counts and Euclidean distance clustering in the <em>vst</em>-transformed data are <u>very similar</u>.
 
 ### Dimensionality reduction plots
-We carry out Principal Component Analysis (PCA) on the <em>vst</em>-transformed data and GPCA on the raw counts (we applied GPCA on the raw counts earlier, prior to summing the counts for each sample; this time we apply it on the filtered data, i.e. after we removed the transcripts we did not want to keep). So, plot A is based on the <em>vst</em>-transformed data and plot B on the raw counts.
+We carry out Principal Component Analysis (PCA) on the <em>vst</em>-transformed data and GLM-PCA on the raw counts (we applied GLM-PCA on the raw counts earlier, prior to summing the counts for each sample; this time we apply it on the filtered data, i.e. after we removed the transcripts that did not pass filtering controls). So, plot A is based on the <em>vst</em>-transformed data and plot B on the raw counts.
 
 <b>In the two plots below, we notice a cluster of normal samples at the top which also surrounded by mainly early tumor samples (recurrence varies though). On the left side of plot A (PCA plot), we see the small cluster we saw in the distance heatmap of the <em>vst</em>-transformed data we saw previously.</b>
 
 ![](`r paste0(getwd(),"/png_exploratory/PCA.png")`)
 
-Similarly, we apply Multi-Dimensional Scaling (MDS) on the <em>vst</em>-transformed data and the raw count data, using the pre-calculated Euclidean and Poisson distances respectively. MDS is using a set of distances to create a low-dimensional coordinate system onto which samples are mapped in a way that maximizes the preservation of the calculated distances. So, plot A is based on the <em>vst</em>-transformed data and plot B on the raw counts.
+Similarly, we apply Multi-Dimensional Scaling (MDS) on the <em>vst</em>-transformed data and the raw count data, using the pre-calculated Euclidean and Poisson distances respectively. MDS is using a set of distances to create a low-dimensional coordinate system onto which samples are mapped in a way that maximizes the preservation of the original high-dimensional distances. So, plot A is based on the <em>vst</em>-transformed data and plot B on the raw counts.
 
 ![](`r paste0(getwd(),"/png_exploratory/MDS.png")`)
 
-<b>MDS on the <em>vst</em>-transformed data identifies COHTN-13 as a clear outlier (top of plot A). The small second cluster we saw in the sample distance heatmaps of the <em>vst</em>-transformed data is appearing on the bottom left of plot A. No clear separation is shown in plot B, but if we drew a vertical line at MDS1 = -5000, we would probably separate that second small cluster on the left, with COHTN-13 presumably at the bottom.</b>
+<b>MDS on the <em>vst</em>-transformed data identifies COHTN-13 as a clear outlier (top of plot A). The small second cluster we saw in the sample distance heatmaps of the <em>vst</em>-transformed data is appearing on the bottom left of plot A. No clear separation is shown in plot B, but if we drew a vertical line at MDS1 = -5000, we would separate that second small cluster on the left, with COHTN-13 presumably at the bottom.</b>
+
+# Sample exlcusion
+Since our questions are tumor-specific, normal samples are only few (8/40 in total) and early stage normal samples are clear outliers (e.g. COHTN-13), <b>we exclude normal samples from the differential expression analysis to avoid additional noise and model destabilization</b>. This makes our results <b>interpretable in the context of tumors only</b>, but it <b>DOES NOT</b> guarantee some of the changes identified could not also be identified in normal samples (had they been included).
+
+<b>We proceed with the 32 tumor samples</b>. The following table shows the distribution of samples per groups.
+
+```{r tumor_sample_distribution, echo=FALSE, eval=TRUE}
+tabdf <- data.frame(
+  Recurrence = c("No recurrence", "Recurrence"),
+  Early = c(9, 7),
+  Late = c(8, 8),
+  check.names = FALSE
+)
+
+kable(tabdf,
+      format = "html", # change to "latex" if knitting to PDF
+      booktabs = TRUE,
+      align = c("l","r","r"),
+      col.names = c("Recurrence", "Early", "Late"),
+      escape = FALSE,
+      caption = "Recurrence by Stage"
+      ) %>%
+  kable_styling(full_width = FALSE, bootstrap_options = c("striped","hover","condensed")) %>%
+  add_header_above(c(" " = 1, "Stage" = 2), escape = FALSE)
+```
 
 # DGEA
-## Likelihood Ratio Test (LRT)
-For differential expression analysis using interaction terms, it is suggested that we follow the Likelihood Ratio Test (LRT) approach (see [here](https://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#likelihood-ratio-test)) to determine how informative the interaction terms are one by one. 
 
-<b>Here we are not interested in the interaction between stage and sample type. We are interested in the recurrence-stage interaction and maybe the recurrence-sample type interaction. We examine the relevance of the recurrence-sample type interaction.</b>
+## Wald test
+We proceeded by building our final <em>DESeq2</em> model using the following formula: ``~ Stage*Recurrence`` which includes recurrence, stage and their interaction.
 
 <details>
   <summary><b>Expand code:</b></summary>
-```{r lrt_and_dgea, eval = FALSE, echo = TRUE}
+```{r wald, eval = FALSE, echo = TRUE}
 # Libraries #####
 library(dplyr)
 library(DESeq2)
@@ -431,33 +494,21 @@ library(EnhancedVolcano)
 library(genefilter)
 library(grid)
 library(gridExtra)
+library(IHW)
+library(ashr)
 
 # Import environment
 load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 
 # Differential Expression #####
-# We are going to use a LRT as described in the DESeq2 vignette:
-# https://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#time-series-experiments
-# and the RNAseq workflow by Michael Love:
-# http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
-# in order to determine whether to add interaction terms in the model
+# Tumor-only model for contrasts of interest
+dds_Wald_filt <- dds[, dds$Sample.type == "Tumor"]
+dds_Wald_filt$Stage      <- droplevels(dds_Wald_filt$Stage)
+dds_Wald_filt$Recurrence <- droplevels(dds_Wald_filt$Recurrence)
 
-# Remove outliers from dds
-outliers = c("COHTN-12", "COHTN-13", "COHTC-37")
-dds = dds[, setdiff(colnames(dds), outliers)]
-dds <- estimateSizeFactors(dds)
-
-# By removing the outliers we no longer have early normal samples and the original 
-# design is no longer full rank. We change the design (exclude the Stage:Sample.type 
-# interaction)
-design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage +
-  Recurrence:Sample.type
-
-dds_lrt = DESeq(dds, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                  Recurrence:Stage)
-res_lrt = results(dds_lrt) %>% as.data.frame() %>%
-  dplyr::filter(padj < 0.05) %>%
-  dplyr::arrange(padj)
+dds_Wald_filt <- estimateSizeFactors(dds_Wald_filt)     # re-estimate on subset
+design(dds_Wald_filt) <- ~ Stage * Recurrence
+dds_Wald_filt <- DESeq(dds_Wald_filt, test = "Wald")
 
 # using pre-existing size factors
 # estimating dispersions
@@ -473,34 +524,7 @@ res_lrt = results(dds_lrt) %>% as.data.frame() %>%
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 6139 genes
-# -- DESeq argument 'minReplicatesForReplace' = 7 
-# -- original counts are preserved in counts(dds)
-# estimating dispersions
-# fitting model and testing
-
-# Only 4 significant genes. The term is removed. We keep the recurrence:stage
-# interaction because we are interested in it.
-
-# Update final design
-design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage
-dds_Wald = DESeq(dds, test = "Wald")
-
-# using pre-existing size factors
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 6796 genes
+# -- replacing outliers and refitting for 9295 genes
 # -- DESeq argument 'minReplicatesForReplace' = 7 
 # -- original counts are preserved in counts(dds)
 # estimating dispersions
@@ -509,237 +533,197 @@ dds_Wald = DESeq(dds, test = "Wald")
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# sum(is.na(mcols(dds_Wald)$betaConv)) 872 genes
-```
-</details>
 
-<b>The interaction between recurrence and sample type only gives 4 significant genes with the LRT test. It is discarded.</b>
+coefNames <- resultsNames(dds_Wald_filt)
+coefNames
 
-<b>The final model will only include the interaction between recurrence and stage (in which we are very interested).</b>
+# [1] "Intercept"                              "Stage_Late_vs_Early"                   
+# [3] "Recurrence_Recurrence_vs_No.recurrence" "StageLate.RecurrenceRecurrence"   
 
-## Wald test
-We then proceeded by building our final <em>DESeq2</em> model using the following formula: ``~ Recurrence + Stage + Sample.type + Recurrence:Stage`` which only uses one interaction term (Recurrence-Stage).
-
-<details>
-  <summary><b>Expand code:</b></summary>
-```{r wald, eval = FALSE, echo = TRUE}
-# We discard these rows from dds_Wald (some of them may end up as DEGs otherwise)
-dds_Wald_filt = dds_Wald[!is.na(mcols(dds_Wald)$betaConv), ] # Exclude 872 genes
-resultsNames(dds_Wald_filt) # Names of the coefficients
-
-# Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
-# Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
-# Stage_Late_vs_Early: Effect of late stage compared to early.
-# Recurrence_Recurrence_vs_No.recurrence: Effect of recurrence compared to no recurrence in normal samples.
-# RecurrenceRecurrence.StageLate: Additional effect of recurrence in late-stage samples.
-
-# Create updated contrast list
+# Define contrasts (use the actual interaction name "StageLate.RecurrenceRecurrence")
 contrasts <- list(
-  # 1. Recurrent Tumors vs. Non-Recurrent Tumors Overall
-  # For tumors overall, the difference in recurrence is given by the main effect 
-  # plus half the interaction (assuming roughly equal representation of early and late stage).
   tumor_rec_vs_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 0.5)   # TR vs TNR, equal stage weighting
   ),
   
-  # 2. Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors
-  # For recurrent tumors, the stage effect is the sum of the main stage effect and the interaction.
   late_tumor_rec_vs_early_tumor_rec = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 1)
+    contrast   = c("Stage_Late_vs_Early", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 1)     # LTR vs ETR
   ),
   
-  # 3. Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-  # In early-stage tumors the recurrence effect is given solely by the main recurrence effect.
   early_tumor_rec_vs_early_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence"),
-    listValues = c(1)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence"),
+    listValues = c(1)        # ETR vs ETNR
   ),
   
-  # 4. Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
-  # In late-stage tumors the recurrence difference is the sum of the main effect and the interaction.
   late_tumor_rec_vs_late_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 1)
-  ),
-  
-  # Additional Comparisons:
-  
-  # a) All Late vs. All Early (averaged across recurrence)
-  # For all samples, the stage difference in non-recurrent samples is 'Stage_Late_vs_Early'
-  # and in recurrent samples it is 'Stage_Late_vs_Early' plus the interaction.
-  # Here we average the effect by assigning a weight of 0.5 to the interaction term.
-  all_late_vs_all_early = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
-  ),
-  
-  # b) Late Tumor No Recurrence vs. Early Tumor No Recurrence
-  # For non-recurrent tumors the stage effect is given solely by 'Stage_Late_vs_Early'.
-  late_tumor_no_rec_vs_early_tumor_no_rec = list(
-    contrast = c("Stage_Late_vs_Early"),
-    listValues = c(1)
-  ),
-  
-  # c) Late Tumors vs. Early Tumors (all tumors)
-  # When considering all tumor samples, the average stage difference is computed
-  # by taking the non-recurrent effect (Stage_Late_vs_Early) and adding half the interaction effect,
-  # again assuming roughly equal proportions of recurrence.
-  late_tumors_vs_early_tumors = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 1)     # LTR vs LTNR
   )
 )
 
-results <- list()
-coefNames <- resultsNames(dds_Wald_filt)  # Get the names of the coefficients in the model
+# Get results and perform IHW
+results_raw  <- list()   # DESeqResults objects
+results_tbls <- list()   # tidy data.frames with padj_ihw
+ihw_objs     <- list()   # IHW fit objects (optional to keep)
 
-for (i in 1:length(contrasts)) {
-  contrastNames <- contrasts[[i]][[1]]
-  contrastValues <- contrasts[[i]][[2]]
+for (nm in names(contrasts)) {
+  cn   <- contrasts[[nm]]$contrast
+  vals <- contrasts[[nm]]$listValues
   
-  # Initialize a contrast vector with zeros
-  contrastVector <- setNames(rep(0, length(coefNames)), coefNames)
+  # Build a named numeric contrast vector over all coefficients
+  cv <- setNames(rep(0, length(coefNames)), coefNames)
   
-  # Assign the specified values to the corresponding coefficients
-  contrastVector[contrastNames] <- contrastValues
+  # Sanity check: all requested coef names exist
+  miss <- setdiff(cn, names(cv))
+  if (length(miss) > 0) stop(sprintf("Contrast '%s' has unknown coefficients: %s",
+                                     nm, paste(miss, collapse = ", ")))
   
-  # Pass the named numeric vector to the contrast argument
-  results[[i]] <- results(dds_Wald_filt, contrast = contrastVector, test = "Wald")
+  cv[cn] <- vals
+  
+  # Get DESeq2 results WITHOUT independent filtering,
+  # since we will do IHW ourselves on pvalue ~ baseMean
+  res <- results(dds_Wald_filt,
+                 contrast = cv,
+                 independentFiltering = FALSE,
+                 cooksCutoff = FALSE)
+  
+  # Tidy table
+  deRes <- as.data.frame(res)
+  deRes$gene <- rownames(deRes)
+  deRes <- deRes[, c("gene","baseMean","log2FoldChange","lfcSE","stat","pvalue","padj")]
+  
+  # IHW on (pvalue ~ baseMean). Remove NAs first.
+  keep <- is.finite(deRes$pvalue) & !is.na(deRes$baseMean)
+  ihwRes <- ihw(pvalue ~ baseMean, data = deRes[keep, c("pvalue","baseMean")], alpha = 0.05)
+  
+  deRes$padj_ihw <- NA_real_
+  deRes$padj_ihw[keep] <- adj_pvalues(ihwRes)
+  
+  # Store
+  results_raw[[paste0("res_", nm)]]  <- res
+  results_tbls[[paste0("res_", nm)]] <- deRes
+  ihw_objs[[paste0("ihw_", nm)]]     <- ihwRes
 }
-names(results) <- paste0("res_", names(contrasts))
+
+# Rejected null hypotheses in IHW results
+lapply(ihw_objs, rejections)
 gc()
-
-# Independent filtering
-metadata(results[[1]])$filterThreshold
-# 5.816327% of genes do not pass the threshold
-# 0.07400563
-
-metadata(results[[2]])$filterThreshold
-# 34.89796% of genes do not pass the threshold
-# 3.011231
-
-metadata(results[[3]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-metadata(results[[4]])$filterThreshold
-# 34.89796% of genes do not pass the threshold
-# 3.011231
-
-metadata(results[[5]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-metadata(results[[6]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-metadata(results[[7]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
 
 # Shrinking logFCs
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
 # normal_shrunk_results = list() # normal cannot be implemented with interactions designs
-ashr_shrunk_results = list()
+ashr_shrunk_results_raw <- list()  # DESeqResults with shrunken LFCs
+ashr_shrunk_tbls       <- list()  # data.frames with log2FC_shrunk + padj_ihw retained
 
-for (i in 1:length(results)) {
-  # normal_shrunk_results[[i]] = lfcShrink(dds_Wald, contrast = contrasts[[i]], type = "normal")
-  ashr_shrunk_results[[i]] = lfcShrink(dds_Wald_filt, res = results[[i]], type = "ashr")
-  # ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
-  # ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
-  #                                                  "Non-converged", "")
+for (nm in names(contrasts)) {
+  res_nm <- paste0("res_", nm)
+  
+  # 1) Shrink using the *same* fitted contrast by passing the DESeqResults
+  shr <- lfcShrink(dds_Wald_filt, res = results_raw[[res_nm]], type = "ashr")
+  
+  # 2) Tidy + merge with your IHW table so we preserve pvalue/padj/padj_ihw
+  shr_df <- as.data.frame(shr)
+  shr_df$gene <- rownames(shr_df)
+  shr_df <- shr_df[, c("gene","baseMean","log2FoldChange","lfcSE")]
+  
+  # keep original names and add a clear column for shrunk LFC
+  colnames(shr_df)[colnames(shr_df) == "log2FoldChange"] <- "log2FC_shrunk"
+  colnames(shr_df)[colnames(shr_df) == "lfcSE"]          <- "lfcSE_shrunk"
+  
+  # merge with the IHW-augmented table you already made
+  merged <- merge(
+    results_tbls[[res_nm]],  # has gene, baseMean, log2FoldChange (MLE), lfcSE, stat, pvalue, padj, padj_ihw
+    shr_df[, c("gene","log2FC_shrunk","lfcSE_shrunk")],
+    by = "gene",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  
+  # store
+  ashr_shrunk_results_raw[[res_nm]] <- shr
+  ashr_shrunk_tbls[[res_nm]]        <- merged
 }
-names(ashr_shrunk_results) = names(results)
 ```
 </details>
 
 This process essentially fits the following model:
-
 $$
 \log\bigl(\mu_j\bigr) \;=\; \beta_0 
-\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes}) + \\ \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late}) + \\ \beta_{\mathrm{Tumor}}\cdot I(\mathrm{Sample.type}=\text{Tumor}) + \\ \beta_{\mathrm{RecYes:Late}}\cdot \bigl[I(\mathrm{Recurrence}=\text{Yes}) \times I(\mathrm{Stage}=\text{Late})\bigr].
+\;+\; \beta_{\mathrm{RecYes}}\cdot I(\mathrm{Recurrence}=\text{Yes})
+\;+\; \beta_{\mathrm{Late}}\cdot I(\mathrm{Stage}=\text{Late}) \\
+\;+\; \beta_{\mathrm{RecYes:Late}}\cdot \bigl[I(\mathrm{Recurrence}=\text{Yes}) \times I(\mathrm{Stage}=\text{Late})\bigr].
 $$
 
 where:
-- $\mu_j$ is the expected count for sample $j$.
-- $\beta_0$ is the intercept (with the reference levels: Recurrence = No, Stage = Early, Sample.type = Normal).
-- $\beta_{\mathrm{RecYes}}$, $\beta_{\mathrm{Late}}$, and $\beta_{\mathrm{Tumor}}$ are the main effects corresponding to the transitions No $\rightarrow$ Yes, Early $\rightarrow$ Late, and Normal $\rightarrow$ Tumor, respectively.
-- $\beta_{\mathrm{RecYes:Late}}$ is the interaction effect of being both Recurrence = Yes and Stage = Late (relative to the No/Early baseline).
-- $I(\cdot)$ is the 0/1 indicator function.
- 
+
+<ul>
+ <li>$\mu_j$ is the expected count for sample $j$ (tumor-only analysis).</li>
+ <li>$\beta_0$ is the intercept (reference levels: Recurrence = No, Stage = Early).</li>
+ <li>$\beta_{\mathrm{RecYes}}$ and $\beta_{\mathrm{Late}}$ are the main effects for No $\rightarrow$ Yes and Early $\rightarrow$ Late, respectively.</li>
+ <li>$\beta_{\mathrm{RecYes:Late}}$ is the interaction effect of being both Recurrence = Yes and Stage = Late (relative to the No/Early baseline).</li>
+ <li>$I(\cdot)$ is the 0/1 indicator function.</li>
+</ul>
+
 We are interested in the following seven comparisons:
 
 1. **Recurrent Tumors vs. Non-Recurrent Tumors Overall**  
 2. **Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors**  
 3. **Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors**  
 4. **Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors**  
-5. **All Late vs. All Early (averaged across recurrence)**  
-6. **Late Tumor No Recurrence vs. Early Tumor No Recurrence**  
-7. **Late Tumors vs. Early Tumors (all tumors)**  
 
-To build the contrasts for each comparison, we follow the logic below:
+To build the contrasts for the first four comparisons, we follow the logic below (tumor-only design, no Sample.type term):
 
 1. **Recurrent Tumors vs. Non-Recurrent Tumors Overall**:
-    - We compare **Tumor** samples only (vs Tumor samples only), so we consider:
-      - Early Tumor, Rec=Yes vs Early Tumor, Rec=No
-      - Late Tumor, Rec=Yes vs Late Tumor, Rec=No
-    - The difference for Early Tumor is:
-    $$
-    \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - (\beta_0 + \beta_{\mathrm{Tumor}}) = \beta_{\mathrm{RecYes}}
-    $$  
-    - The difference for Late Tumor is:
-    $$
-    \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) = \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
-    $$  
-    Since we have 16 Early-Tumor and 16 Late-Tumor (equal), we average those two differences 50/50:
-    $$
-    \frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}})]}{2} = \beta_{\mathrm{RecYes}} + 0.5*\beta_{\mathrm{RecYes:Late}}
-    $$  
+   - Compare tumors within stage:
+     - Early Tumor, Rec=Yes vs Early Tumor, Rec=No
+     - Late Tumor, Rec=Yes vs Late Tumor, Rec=No
+   - Early Tumor difference:
+     $$
+     (\beta_0 + \beta_{\mathrm{RecYes}}) - (\beta_0) \;=\; \beta_{\mathrm{RecYes}}
+     $$
+   - Late Tumor difference:
+     $$
+     (\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}) - (\beta_0 + \beta_{\mathrm{Late}})
+     \;=\; \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
+     $$
+   - With equal Early/Late weighting (50/50):
+     $$
+     \frac{\beta_{\mathrm{RecYes}} + \left(\beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}\right)}{2}
+     \;=\; \beta_{\mathrm{RecYes}} + 0.5\,\beta_{\mathrm{RecYes:Late}}
+     $$
 
 2. **Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors**:
-    - (Late, Rec=Yes, Tumor) minus (Early, Rec=Yes, Tumor):
-    $$
-    \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}}
-    $$
+   - (Late, Rec=Yes) minus (Early, Rec=Yes):
+     $$
+     (\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}) - (\beta_0 + \beta_{\mathrm{RecYes}})
+     \;=\; \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes:Late}}
+     $$
 
 3. **Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors**:
-    - (Early, Rec=Yes, Tumor) minus (Early, Rec=No, Tumor):
-    $$
-    \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Tumor}}\bigr) = \beta_{\mathrm{RecYes}}
-    $$
+   - (Early, Rec=Yes) minus (Early, Rec=No):
+     $$
+     (\beta_0 + \beta_{\mathrm{RecYes}}) - (\beta_0) \;=\; \beta_{\mathrm{RecYes}}
+     $$
 
 4. **Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors**:
-    - (Late, Rec=Yes, Tumor) minus (Late, Rec=No, Tumor):
-    $$
-    \beta_0 + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{RecYes:Late}} + \beta_{\mathrm{Late:Tumor}} - \bigl(\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{Tumor}} + \beta_{\mathrm{Late:Tumor}}\bigr) = \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
-    $$
+   - (Late, Rec=Yes) minus (Late, Rec=No):
+     $$
+     (\beta_0 + \beta_{\mathrm{Late}} + \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}) - (\beta_0 + \beta_{\mathrm{Late}})
+     \;=\; \beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}}
+     $$
 
-5. **All Late vs. All Early (averaged across recurrence)**:
-    - For all samples, the stage difference in non-recurrent samples is 'Stage_Late_vs_Early' and in recurrent samples it is 'Stage_Late_vs_Early' plus the interaction.
-    - The average effect for recurrence is computed by assigning a weight of 0.5 to the interaction term:
-    $$
-    \frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}})]}{2} = \beta_{\mathrm{RecYes}} + 0.5*\beta_{\mathrm{RecYes:Late}}
-    $$
+By performing the corresponding **Wald** tests on these linear combinations, we obtain the **logFC**’s of interest and can identify the significant genes.
 
-6. **Late Tumor No Recurrence vs. Early Tumor No Recurrence**:
-    - For non-recurrent tumors, the stage effect is given solely by 'Stage_Late_vs_Early':
-    $$
-    \beta_{\mathrm{Late}} 
-    $$
+For multiple testing correction we use <b>Independent Hypothesis Weighting (IHW)</b> on the raw p-values using the ``baseMean`` as covariate. IHW controls the FDR like Benjamini–Hochberg, but *learns* data-driven weights for hypotheses using an external covariate (e.g., each gene’s mean normalized count, ``baseMean``) that is **independent of the p-value under the null** yet informative for power. This prioritizes tests that are more likely to be detectable and typically yields more discoveries at the same FDR. 
 
-7. **Late Tumors vs. Early Tumors (all tumors)**:
-    - When considering all tumor samples, the average stage difference is computed by taking the non-recurrent effect (`Stage_Late_vs_Early`) and adding half the interaction effect (`RecurrenceRecurrence.StageLate`):
-    $$
-    \frac{[\beta_{\mathrm{RecYes}} + (\beta_{\mathrm{RecYes}} + \beta_{\mathrm{RecYes:Late}})]}{2} = \beta_{\mathrm{RecYes}} + 0.5*\beta_{\mathrm{RecYes:Late}}
-    $$
+<b>We get 140, 1584, 391 and 825 significant genes respectively.</b>
 
-By performing the corresponding **Wald** tests, we obtain the **logFC**'s of interest and can identify the significant genes.
+<!--In RNA-seq, the IHW paper explicitly demonstrates using the mean normalized counts as the covariate and shows increased power, and DESeq2 provides a supported integration (`filterFun = ihw`) for this purpose.-->
 
 ## Shrinkage
-Before jumping to this though, we use an additional step, which is <b>shrinkage</b>. The logic behind shrinkage is to moderate spurisously large ``logFC``'s particularly for lowly-expressed genes and give more "realistic" estimates, although it might be case that high ``logFC``'s are not necessarily artefacts.
+We use an additional step, which is <b>shrinkage</b>. The logic behind shrinkage is to moderate spuriously large ``logFC``'s particularly for lowly-expressed genes and give more "realistic" estimates, although it might be case that high ``logFC``'s are not necessarily artefacts. Overall, it preserves directionality, while reducing noise.
 
 The step is optional, but <b>we apply it here</b>. The only shrinkage method which can handle interaction designs is the ``ashr`` method ([Ref](https://doi.org/10.1093/biostatistics/kxw041)). Below are the results of shrinkage for the four different comparisons. Shrinkage is achieved to a certain degree in all cases, <b>but does not entirely fix the abnormally high logFC's in lowly-expressed genes</b>.
 
@@ -755,17 +739,8 @@ The step is optional, but <b>we apply it here</b>. The only shrinkage method whi
 <b>Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors</b>
 ![](`r paste0(getwd(),"/png_dgea/MA_plot_res_late_tumor_rec_vs_late_tumor_no_rec.png")`)
 
-<b>All Late-Stage Samples vs. All Early-Stage Samples</b>
-![](`r paste0(getwd(),"/png_dgea/MA_plot_res_all_late_vs_all_early.png")`)
-
-<b>Non-recurrent Late-Stage Tumors vs. Non-Recurrent Early-Stage Tumors</b>
-![](`r paste0(getwd(),"/png_dgea/MA_plot_res_late_tumor_no_rec_vs_early_tumor_no_rec.png")`)
-
-<b>All Late-Stage Tumors vs. All Early-Stage Tumors</b>
-![](`r paste0(getwd(),"/png_dgea/MA_plot_res_late_tumors_vs_early_tumors.png")`)
-
 ## Volcano plots
-The volcano plots below show differentially expressed genes in each comparison. Red color is used for up-regulated genes, blue color for down-regulated genes. The rest of the colors is used for genes that do not pass the $p_{adj}$-value threshold (0.05) and or an arbitrary ``logFC`` cutoff of ±1.
+The volcano plots below show differentially expressed genes in each comparison. Red color is used for up-regulated genes, blue color for down-regulated genes. The rest of the colors is used for genes that do not pass the $p_{adj}$-value threshold (0.05) and/or an arbitrary ``logFC`` cutoff of ±1.
 
 The <b>x</b>-axis shows the calculated ``logFC`` of each gene and the <b>y</b>-axis has the $-\log{p_{adj}}$ for the ``logFC`` of each gene.
 
@@ -773,12 +748,9 @@ The <b>x</b>-axis shows the calculated ``logFC`` of each gene and the <b>y</b>-a
 ![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_late_tumor_rec_vs_early_tumor_rec.png")`)
 ![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_early_tumor_rec_vs_early_tumor_no_rec.png")`)
 ![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_late_tumor_rec_vs_late_tumor_no_rec.png")`)
-![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_all_late_vs_all_early.png")`)
-![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_late_tumor_no_rec_vs_early_tumor_no_rec.png")`)
-![](`r paste0(getwd(),"/png_dgea/Volcano_ashr_shrunk_LFCs_res_late_tumors_vs_early_tumors.png")`)
 
 ## Full Post-DGEA heatmaps
-Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the samples were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest.
+Below there are 8 heatmaps (4 pairs), one pair for each comparison, where the samples were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest (recurrence, stage).
 
 ### Clustered
 <details><summary><b>Expand</b></summary>
@@ -790,13 +762,6 @@ Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the s
 
 ![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_late_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
 
-![](`r paste0(getwd(),"/png_dgea/res_all_late_vs_all_early_DEG_Poisson_clustered_samples_and_genes.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/res_late_tumor_no_rec_vs_early_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/res_late_tumors_vs_early_tumors_DEG_Poisson_clustered_samples_and_genes.png")`)
-</details>
-
 ### Ordered
 <details><summary><b>Expand</b></summary>
 ![](`r paste0(getwd(),"/png_dgea/res_tumor_rec_vs_tumor_no_rec_DEG_samples_ordered.png")`)
@@ -807,15 +772,8 @@ Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the s
 
 ![](`r paste0(getwd(),"/png_dgea/res_late_tumor_rec_vs_late_tumor_no_rec_DEG_samples_ordered.png")`)
 
-![](`r paste0(getwd(),"/png_dgea/res_all_late_vs_all_early_DEG_samples_ordered.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/res_late_tumor_no_rec_vs_early_tumor_no_rec_DEG_samples_ordered.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/res_late_tumors_vs_early_tumors_DEG_samples_ordered.png")`)
-</details>
-
 ## Filtered Post-DGEA heatmaps
-Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the <b>filtered samples of interest</b> were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest. <b>The distances used for the clustering had previously been calculated on the full dataset; NOT just these samples</b>.
+Below there are 8 heatmaps (4 pairs), one pair for each comparison, where the <b>filtered samples of interest</b> (samples releventa to a DGEA comparison) were clustered based on the expression of the top 100 differentially expressed genes (either up- or down-regulated) <b>OR</b> ordered based on variables of interest. <b>The distances used for the clustering had previously been calculated on the full dataset (tumors only); NOT just these samples</b>.
 
 ### Clustered
 ![](`r paste0(getwd(),"/png_dgea/filtered_res_tumor_rec_vs_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
@@ -826,12 +784,6 @@ Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the <
 
 ![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_late_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
 
-![](`r paste0(getwd(),"/png_dgea/filtered_res_all_late_vs_all_early_DEG_Poisson_clustered_samples_and_genes.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_no_rec_vs_early_tumor_no_rec_DEG_Poisson_clustered_samples_and_genes.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumors_vs_early_tumors_DEG_Poisson_clustered_samples_and_genes.png")`)
-
 ### Ordered
 ![](`r paste0(getwd(),"/png_dgea/filtered_res_tumor_rec_vs_tumor_no_rec_DEG_samples_ordered.png")`)
 
@@ -840,12 +792,6 @@ Below there are 14 heatmaps (7 pairs), one pair for each comparison, where the <
 ![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_early_tumor_rec_DEG_samples_ordered.png")`)
 
 ![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_rec_vs_late_tumor_no_rec_DEG_samples_ordered.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/filtered_res_all_late_vs_all_early_DEG_samples_ordered.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumor_no_rec_vs_early_tumor_no_rec_DEG_samples_ordered.png")`)
-
-![](`r paste0(getwd(),"/png_dgea/filtered_res_late_tumors_vs_early_tumors_DEG_samples_ordered.png")`)
 
 # Pathways
 ## Over-representation analysis (ORA)
@@ -873,21 +819,6 @@ ora_loop(ora_pathways = pathways, comp = "ashr_ETR_vs_ETNR")
 ora_loop(ora_pathways = pathways, comp = "ashr_LTR_vs_LTNR")
 ```
 
-### All Late-Stage Samples vs. All Early-Stage Samples
-```{r auto_L_vs_E_ORA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-ora_loop(ora_pathways = pathways, comp = "ashr_L_vs_E")
-```
-
-### Non-recurrent Late-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-```{r auto_LTNR_vs_ETNR_ORA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-ora_loop(ora_pathways = pathways, comp = "ashr_LTNR_vs_ETNR")
-```
-
-### All Late-Stage Tumors vs. All Early-Stage Tumors
-```{r auto_LT_vs_ET_ORA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-ora_loop(ora_pathways = pathways, comp = "ashr_LT_vs_ET")
-```
-
 ## Gene Set Enrichment Analysis (GSEA)
 Gene Set Enrichment Analysis leverages log fold changes to rank genes by expression variation (<b>in all genes; NOT just the significant ones</b>), enabling the detection of coordinated up- or down-regulation in predefined gene sets and providing more nuanced insights than over-representation analysis, which only assesses the enrichment of selected genes without considering their expression levels. We carry out this analysis using <em>clusterProfiler</em> for the following available gene set resources: <b>GO, KEGG, WikiPathways, Reactome, Disease Ontology (DO), Network of Cancer Gene (NCG) and Disease Gene Network (DGN)</b>; same as ORA. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/oscc_seq_rec).
 
@@ -913,25 +844,10 @@ gsea_loop(gsea_pathways = pathways, comp = "ashr_ETR_vs_ETNR")
 gsea_loop(gsea_pathways = pathways, comp = "ashr_LTR_vs_LTNR")
 ```
 
-### All Late-Stage Samples vs. All Early-Stage Samples
-```{r auto_L_vs_E_GSEA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-gsea_loop(gsea_pathways = pathways, comp = "ashr_L_vs_E")
-```
-
-### Non-recurrent Late-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-```{r auto_LTNR_vs_ETNR_GSEA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-gsea_loop(gsea_pathways = pathways, comp = "ashr_LTNR_vs_ETNR")
-```
-
-### All Late-Stage Tumors vs. All Early-Stage Tumors
-```{r auto_LT_vs_ET_GSEA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-gsea_loop(gsea_pathways = pathways, comp = "ashr_LT_vs_ET")
-```
-
 ## Active Subnetwork Enrichment
 <em>pathfindR</em> maps each gene’s statistical significance (from a comparison of interest) onto a <b>protein–protein interaction (PIN) network</b> and then searches for "active subnetworks", which are clusters of closely interacting, significantly altered genes. Each subnetwork is tested for pathway enrichment, and the results are aggregated to reveal biologically relevant pathways that are highly supported by <b>both gene-level evidence and interaction data</b>. This approach goes beyond simple gene-count–based methods like Over-Representation Analysis (ORA) by incorporating interaction patterns rather than just whether a gene is in a pathway, and it differs from GSEA by focusing on actual network connectivity rather than only rank-based enrichment. Consequently, pathfindR can highlight disease-associated pathways that may remain undetected when ignoring the crucial contextual relationships among genes. We carry out this analysis using for the following available gene set resources: <b>GO, KEGG, Reactome, BioCarta</b> and the <b>Biogrid PIN</b>. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/oscc_seq_rec).
 
-<b>In the following subsections, if you don't see any result, then there are NO significant results.</b>
+<b>In the following subsections, if you don't see any result, then there are NO significant results.</b> Pathways in pathfindR <b>can be clustered to create a representative pathway which is summarizing findings in multiple similar pathways</b>. These can be seen in the corresponding "representative" tables.
 
 ### Tables
 #### Recurrent Tumors vs. Non-Recurrent Tumors Overall
@@ -954,21 +870,6 @@ pathfindR_loop(pathfindR_pathways = pathfindR_pathways, comp = "ashr_ETR_vs_ETNR
 pathfindR_loop(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LTR_vs_LTNR")
 ```
 
-#### All Late-Stage Samples vs. All Early-Stage Samples
-```{r auto_L_vs_E_pathfindR_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_loop(pathfindR_pathways = pathfindR_pathways, comp = "ashr_L_vs_E")
-```
-
-#### Non-recurrent Late-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-```{r auto_LTNR_vs_pathfindR_GSEA_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_loop(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LTNR_vs_ETNR")
-```
-
-#### All Late-Stage Tumors vs. All Early-Stage Tumors
-```{r auto_LT_vs_ET_pathfindR_loop, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_loop(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LT_vs_ET")
-```
-
 ### Plots
 #### Recurrent Tumors vs. Non-Recurrent Tumors Overall
 ```{r auto_TR_vs_TNR_pathfindR_plots, echo = FALSE, eval = TRUE, results = 'asis'}
@@ -988,21 +889,6 @@ pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_ETR_v
 #### Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
 ```{r auto_LTR_vs_LTNR_pathfindR_plots, echo = FALSE, eval = TRUE, results = 'asis'}
 pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LTR_vs_LTNR")
-```
-
-#### All Late-Stage Samples vs. All Early-Stage Samples
-```{r auto_L_vs_E_pathfindR_plots, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_L_vs_E")
-```
-
-#### Non-recurrent Late-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-```{r auto_LTNR_vs_pathfindR_GSEA_plots, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LTNR_vs_ETNR")
-```
-
-#### All Late-Stage Tumors vs. All Early-Stage Tumors
-```{r auto_LT_vs_ET_pathfindR_plots, echo = FALSE, eval = TRUE, results = 'asis'}
-pathfindR_plot_loops(pathfindR_pathways = pathfindR_pathways, comp = "ashr_LT_vs_ET")
 ```
 
 # Session information

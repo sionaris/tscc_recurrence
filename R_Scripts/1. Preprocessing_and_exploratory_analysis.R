@@ -157,8 +157,7 @@ poisson_mdsplot = ggplot(mdsPois, aes(x = `1`, y = `2`, color = names)) +
   labs(x = "MDS1", y = "MDS2") +
   guides(alpha = "none", color = "none")
 
-tiff("Results/Exploratory analysis/dimred_prior_to_sum.tiff", width = 2980, height = 1380, res = 700,
-     compression = "lzw")
+png("Results/Exploratory analysis/dimred_prior_to_sum.png", width = 2980, height = 1380, res = 700)
 ggarrange(gpcaplot, poisson_mdsplot,
           ncol = 2, nrow = 1, common.legend = TRUE, 
           labels = c("A", "B"), legend = "right",
@@ -266,10 +265,10 @@ create_density_plot_color <- function(matrix) {
 # Density plots/curves for our data
 create_density_curve(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves.tiff",
+ggsave(filename = "OSCC_filtered_read_counts_density_curves.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # The previous plot contains count outliers (abnormally high counts) which make 
@@ -279,29 +278,29 @@ dev.off()
 create_density_curve(counts(dds)) +
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves_xlim30.tiff",
+ggsave(filename = "OSCC_filtered_read_counts_density_curves_xlim30.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # Color density plots for counts
 create_density_plot_color(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities.tiff",
+ggsave(filename = "OSCC_filtered_read_counts_color_densities.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # With xlim 30
 create_density_plot_color(counts(dds))+
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities_xlim30.tiff",
+ggsave(filename = "OSCC_filtered_read_counts_color_densities_xlim30.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # Now with normalized counts
@@ -356,19 +355,19 @@ rm(rec_samples, norec_samples, sample_conditions, normalized_counts, dds_null,
 
 create_density_curve(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_density_curves.tiff",
+ggsave(filename = "OSCC_filtered_log2normcounts_density_curves.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # Color density plots for counts
 create_density_plot_color(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_color_densities.tiff",
+ggsave(filename = "OSCC_filtered_log2normcounts_color_densities.png",
        path = "Results/Exploratory analysis",
-       width = 1920, height = 1080, device = 'tiff', units = "px",
-       dpi = 150, compression = "lzw")
+       width = 1920, height = 1080, device = 'png', units = "px",
+       dpi = 150)
 dev.off()
 
 # Further exploratory analysis #####
@@ -413,7 +412,7 @@ fig = ggarrange(plot1, plot2, plot3,
                 labels = c("A", "B", "C"),
                 align = "hv",
                 font.label = list(size = 10, color = "black", face = "bold", family = NULL, position = "top"))
-tiff("Results/Exploratory analysis/meanSdPlot.tiff", res = 300, width = 4500, height = 1600, compression = "lzw")
+png("Results/Exploratory analysis/meanSdPlot.png", res = 300, width = 4500, height = 1600)
 fig
 annotate_figure(fig, left = textGrob(bquote(bold("sd")), rot = 90, vjust = 1, gp = gpar(cex = 1)),
                 bottom = textGrob(bquote(bold("rank (mean)")), gp = gpar(cex = 1)))
@@ -438,26 +437,26 @@ ann_colors = list(
 )
 
 # log2(norm.counts + 1)
-tiff("Results/Exploratory analysis/top50_heatmap_log2(norm.counts+1).tiff",
+png("Results/Exploratory analysis/top50_heatmap_log2(norm.counts+1).png",
      res = 200, width = 1420, 
-     height = 1080, compression = "lzw")
+     height = 1080)
 pheatmap(log2.norm.counts.plus1[select1, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "log2(norm.counts + 1)",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
 
 # rlog
-tiff("Results/Exploratory analysis/top50_heatmap_rlog.tiff",
+png("Results/Exploratory analysis/top50_heatmap_rlog.png",
      res = 200, width = 1420, 
-     height = 1080, compression = "lzw")
+     height = 1080)
 pheatmap(assay(rld)[select2, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "rlog",
          annotation_colors = ann_colors, fontsize = 6)
 dev.off()
 
 # vst
-tiff("Results/Exploratory analysis/top50_heatmap_vst.tiff", res = 200, width = 1420, 
-     height = 1080, compression = "lzw")
+png("Results/Exploratory analysis/top50_heatmap_vst.png", res = 200, width = 1420, 
+     height = 1080)
 pheatmap(assay(vsd)[select3, rownames(df)], cluster_rows=FALSE, show_rownames=FALSE,
          cluster_cols=FALSE, annotation_col=df, main = "vst",
          annotation_colors = ann_colors, fontsize = 6)
@@ -471,9 +470,9 @@ sampleDistMatrix = as.matrix(sampleVSTdists)
 #colnames(sampleDistMatrix) = NULL
 colors = colorRampPalette(viridisLite::magma(10))(255)
 
-tiff("Results/Exploratory analysis/sample_distance_heatmap_vst.tiff", 
+png("Results/Exploratory analysis/sample_distance_heatmap_vst.png", 
      res = 700, width = 6760, 
-     height = 4760, compression = "lzw")
+     height = 4760)
 pheatmap(sampleDistMatrix,
          clustering_distance_rows = sampleVSTdists,
          clustering_distance_cols = sampleVSTdists,
@@ -490,8 +489,8 @@ samplePoisDistMatrix = as.matrix(poisd$dd)
 dimnames(samplePoisDistMatrix) = dimnames(sampleDistMatrix)
 #colnames(samplePoisDistMatrix) = NULL
 
-tiff("Results/Exploratory analysis/sample_poisson_distance_heatmap.tiff", res = 700, width = 6760, 
-     height = 4760, compression = "lzw")
+png("Results/Exploratory analysis/sample_poisson_distance_heatmap.png", res = 700, width = 6760, 
+     height = 4760)
 pheatmap(samplePoisDistMatrix,
          clustering_distance_rows = poisd$dd,
          clustering_distance_cols = poisd$dd,
@@ -524,13 +523,7 @@ cat("Adjusted Rand Index (ARI):", ari, "\n")
 # Dimensionality reduction #####
 # Principal Component Analysis
 pcaData = plotPCA(vsd, intgroup = c("Recurrence", "Sample.type"), 
-                  returnData=TRUE) %>%
-  dplyr::rename(Patient.ID = name)
-stage = as.data.frame(vsd@colData@listData) %>%
-  rownames_to_column %>%
-  dplyr::select(Patient.ID = rowname, Stage)
-pcaData = pcaData %>%
-  inner_join(stage, by = "Patient.ID")
+                  returnData=TRUE)
 percentVar = round(100 * attr(pcaData, "percentVar"))
 pcaplot = ggplot(pcaData, aes(PC1, PC2, color = Sample.type, shape = Recurrence)) +
   geom_point(size = 0.2, alpha = 0.65) +
@@ -574,7 +567,7 @@ gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = Sample.type, shape =
   geom_point(size = 0.2, alpha = 0.65) +
   geom_text_repel(aes(label = Stage), segment.linetype = 1,
                   segment.color = "black", segment.size = 0.1,
-                  min.segment.length = 0,
+                  min.segment.length = 0, max.overlaps = Inf,
                   size = 0.5, nudge_y = 0.03, nudge_x = 0.03, show.legend = FALSE) +
   ggtitle("Generalized Principal Component Analysis (glmpca, counts)") +
   theme_classic() +
@@ -595,8 +588,7 @@ gpcaplot = ggplot(gpca.dat, aes(x = dim1, y = dim2, color = Sample.type, shape =
         legend.spacing.x = unit(0.5, units = "mm"),
         legend.background = element_blank())
 
-tiff("Results/Exploratory analysis/PCA.tiff", width = 2880, height = 1380, res = 700,
-     compression = "lzw")
+png("Results/Exploratory analysis/PCA.png", width = 2880, height = 1380, res = 700)
 ggarrange(pcaplot, gpcaplot, 
           ncol = 2, nrow = 1, common.legend = TRUE, 
           labels = c("A", "B"), legend = "right",
@@ -671,7 +663,7 @@ fig = ggarrange(mdsplot +rremove("ylab"), poisson_mdsplot +rremove("ylab"),
                 labels = c("A", "B"),
                 align = "hv",
                 font.label = list(size =4, color = "black", face = "bold"))
-tiff("Results/Exploratory analysis/MDS.tiff", res = 700, width = 2880, height = 1080, compression = "lzw")
+png("Results/Exploratory analysis/MDS.png", res = 700, width = 2880, height = 1080)
 fig
 annotate_figure(fig, left = textGrob(bquote(bold("MDS2")), rot = 90, vjust = 1, gp = gpar(cex = 0.45)))
 dev.off()

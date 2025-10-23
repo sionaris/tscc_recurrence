@@ -1,10 +1,20 @@
 #sidebar {
   position: fixed;
-  top: 20px;     /* Adjust as needed */
-  right: 20px;   /* Adjust as needed */
-  width: 300px;  /* Adjust width as needed */
+  top: 20px;
+  right: 20px;
+  width: 300px;  /* You can tweak */
   background: #f9f9f9;
   border: 1px solid #ccc;
   padding: 10px;
-  z-index: 1000; /* Ensure it stays on top of other content */
+  z-index: 1000;
+}
+
+/* Push main content so it doesn't go under the sidebar */
+body {
+  margin-right: 340px; /* sidebar width + spacing (300 + 20 + 20) */
+}
+
+/* If you want it to adjust automatically based on sidebar width */
+body {
+  margin-right: calc(300px + 40px); /* width + left/right gap */
 }

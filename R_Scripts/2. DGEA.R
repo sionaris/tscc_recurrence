@@ -26,33 +26,21 @@ library(EnhancedVolcano)
 library(genefilter)
 library(grid)
 library(gridExtra)
+library(IHW)
+library(ashr)
 
 # Import environment
 load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
 
 # Differential Expression #####
-# We are going to use a LRT as described in the DESeq2 vignette:
-# https://www.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#time-series-experiments
-# and the RNAseq workflow by Michael Love:
-# http://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html#time-course-experiments
-# in order to determine whether to add interaction terms in the model
+# Tumor-only model for contrasts of interest
+dds_Wald_filt <- dds[, dds$Sample.type == "Tumor"]
+dds_Wald_filt$Stage      <- droplevels(dds_Wald_filt$Stage)
+dds_Wald_filt$Recurrence <- droplevels(dds_Wald_filt$Recurrence)
 
-# Remove outliers from dds
-outliers = c("COHTN-12", "COHTN-13", "COHTC-37")
-dds = dds[, setdiff(colnames(dds), outliers)]
-dds <- estimateSizeFactors(dds)
-
-# By removing the outliers we no longer have early normal samples and the original 
-# design is no longer full rank. We change the design (exclude the Stage:Sample.type 
-# interaction)
-design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage +
-  Recurrence:Sample.type
-
-dds_lrt = DESeq(dds, test = "LRT", reduced = ~ Recurrence + Stage + Sample.type +
-                  Recurrence:Stage)
-res_lrt = results(dds_lrt) %>% as.data.frame() %>%
-  dplyr::filter(padj < 0.05) %>%
-  dplyr::arrange(padj)
+dds_Wald_filt <- estimateSizeFactors(dds_Wald_filt)     # re-estimate on subset
+design(dds_Wald_filt) <- ~ Stage * Recurrence
+dds_Wald_filt <- DESeq(dds_Wald_filt, test = "Wald")
 
 # using pre-existing size factors
 # estimating dispersions
@@ -68,34 +56,7 @@ res_lrt = results(dds_lrt) %>% as.data.frame() %>%
 # letters, numbers, '_' and '.'. It is recommended (but not required) to use
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 6139 genes
-# -- DESeq argument 'minReplicatesForReplace' = 7 
-# -- original counts are preserved in counts(dds)
-# estimating dispersions
-# fitting model and testing
-
-# Only 4 significant genes. The term is removed. We keep the recurrence:stage
-# interaction because we are interested in it.
-
-# Update final design
-design(dds) = ~ Recurrence + Stage + Sample.type + Recurrence:Stage
-dds_Wald = DESeq(dds, test = "Wald")
-
-# using pre-existing size factors
-# estimating dispersions
-# gene-wise dispersion estimates
-# mean-dispersion relationship
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# final dispersion estimates
-# fitting model and testing
-# Note: levels of factors in the design contain characters other than
-# letters, numbers, '_' and '.'. It is recommended (but not required) to use
-# only letters, numbers, and delimiters '_' or '.', as these are safe characters
-# for column names in R. [This is a message, not a warning or an error]
-# -- replacing outliers and refitting for 6796 genes
+# -- replacing outliers and refitting for 9295 genes
 # -- DESeq argument 'minReplicatesForReplace' = 7 
 # -- original counts are preserved in counts(dds)
 # estimating dispersions
@@ -105,265 +66,340 @@ dds_Wald = DESeq(dds, test = "Wald")
 # only letters, numbers, and delimiters '_' or '.', as these are safe characters
 # for column names in R. [This is a message, not a warning or an error]
 
-# sum(is.na(mcols(dds_Wald)$betaConv)) 872 genes
+coefNames <- resultsNames(dds_Wald_filt)
+coefNames
 
-# We discard these rows from dds_Wald (some of them may end up as DEGs otherwise)
-dds_Wald_filt = dds_Wald[!is.na(mcols(dds_Wald)$betaConv), ] # Exclude 872 genes
-resultsNames(dds_Wald_filt) # Names of the coefficients
+# [1] "Intercept"                              "Stage_Late_vs_Early"                   
+# [3] "Recurrence_Recurrence_vs_No.recurrence" "StageLate.RecurrenceRecurrence"   
 
-# Intercept: Baseline expression for the reference levels (Normal samples, Early stage, No recurrence).
-# Sample.type_Tumor_vs_Normal: Effect of tumor samples compared to normal.
-# Stage_Late_vs_Early: Effect of late stage compared to early.
-# Recurrence_Recurrence_vs_No.recurrence: Effect of recurrence compared to no recurrence in normal samples.
-# RecurrenceRecurrence.StageLate: Additional effect of recurrence in late-stage samples.
-
-# Create updated contrast list
+# Define contrasts (use the actual interaction name "StageLate.RecurrenceRecurrence")
 contrasts <- list(
-  # 1. Recurrent Tumors vs. Non-Recurrent Tumors Overall
-  # For tumors overall, the difference in recurrence is given by the main effect 
-  # plus half the interaction (assuming roughly equal representation of early and late stage).
   tumor_rec_vs_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 0.5)   # TR vs TNR, equal stage weighting
   ),
   
-  # 2. Recurrent Late-Stage Tumors vs. Recurrent Early-Stage Tumors
-  # For recurrent tumors, the stage effect is the sum of the main stage effect and the interaction.
   late_tumor_rec_vs_early_tumor_rec = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 1)
+    contrast   = c("Stage_Late_vs_Early", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 1)     # LTR vs ETR
   ),
   
-  # 3. Recurrent Early-Stage Tumors vs. Non-Recurrent Early-Stage Tumors
-  # In early-stage tumors the recurrence effect is given solely by the main recurrence effect.
   early_tumor_rec_vs_early_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence"),
-    listValues = c(1)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence"),
+    listValues = c(1)        # ETR vs ETNR
   ),
   
-  # 4. Recurrent Late-Stage Tumors vs. Non-Recurrent Late-Stage Tumors
-  # In late-stage tumors the recurrence difference is the sum of the main effect and the interaction.
   late_tumor_rec_vs_late_tumor_no_rec = list(
-    contrast = c("Recurrence_Recurrence_vs_No.recurrence", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 1)
-  ),
-  
-  # Additional Comparisons:
-  
-  # a) All Late vs. All Early (averaged across recurrence)
-  # For all samples, the stage difference in non-recurrent samples is 'Stage_Late_vs_Early'
-  # and in recurrent samples it is 'Stage_Late_vs_Early' plus the interaction.
-  # Here we average the effect by assigning a weight of 0.5 to the interaction term.
-  all_late_vs_all_early = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
-  ),
-  
-  # b) Late Tumor No Recurrence vs. Early Tumor No Recurrence
-  # For non-recurrent tumors the stage effect is given solely by 'Stage_Late_vs_Early'.
-  late_tumor_no_rec_vs_early_tumor_no_rec = list(
-    contrast = c("Stage_Late_vs_Early"),
-    listValues = c(1)
-  ),
-  
-  # c) Late Tumors vs. Early Tumors (all tumors)
-  # When considering all tumor samples, the average stage difference is computed
-  # by taking the non-recurrent effect (Stage_Late_vs_Early) and adding half the interaction effect,
-  # again assuming roughly equal proportions of recurrence.
-  late_tumors_vs_early_tumors = list(
-    contrast = c("Stage_Late_vs_Early", "RecurrenceRecurrence.StageLate"),
-    listValues = c(1, 0.5)
+    contrast   = c("Recurrence_Recurrence_vs_No.recurrence", "StageLate.RecurrenceRecurrence"),
+    listValues = c(1, 1)     # LTR vs LTNR
   )
 )
 
-results <- list()
-coefNames <- resultsNames(dds_Wald_filt)  # Get the names of the coefficients in the model
+# Get results and perform IHW
+results_raw  <- list()   # DESeqResults objects
+results_tbls <- list()   # tidy data.frames with padj_ihw
+ihw_objs     <- list()   # IHW fit objects (optional to keep)
 
-for (i in 1:length(contrasts)) {
-  contrastNames <- contrasts[[i]][[1]]
-  contrastValues <- contrasts[[i]][[2]]
+for (nm in names(contrasts)) {
+  cn   <- contrasts[[nm]]$contrast
+  vals <- contrasts[[nm]]$listValues
   
-  # Initialize a contrast vector with zeros
-  contrastVector <- setNames(rep(0, length(coefNames)), coefNames)
+  # Build a named numeric contrast vector over all coefficients
+  cv <- setNames(rep(0, length(coefNames)), coefNames)
   
-  # Assign the specified values to the corresponding coefficients
-  contrastVector[contrastNames] <- contrastValues
+  # Sanity check: all requested coef names exist
+  miss <- setdiff(cn, names(cv))
+  if (length(miss) > 0) stop(sprintf("Contrast '%s' has unknown coefficients: %s",
+                                     nm, paste(miss, collapse = ", ")))
   
-  # Pass the named numeric vector to the contrast argument
-  results[[i]] <- results(dds_Wald_filt, contrast = contrastVector, test = "Wald")
+  cv[cn] <- vals
+  
+  # Get DESeq2 results WITHOUT independent filtering,
+  # since we will do IHW ourselves on pvalue ~ baseMean
+  res <- results(dds_Wald_filt,
+                 contrast = cv,
+                 independentFiltering = FALSE,
+                 cooksCutoff = FALSE)
+  
+  # Tidy table
+  deRes <- as.data.frame(res)
+  deRes$gene <- rownames(deRes)
+  deRes <- deRes[, c("gene","baseMean","log2FoldChange","lfcSE","stat","pvalue","padj")]
+  
+  # IHW on (pvalue ~ baseMean). Remove NAs first.
+  keep <- is.finite(deRes$pvalue) & !is.na(deRes$baseMean)
+  ihwRes <- ihw(pvalue ~ baseMean, data = deRes[keep, c("pvalue","baseMean")], alpha = 0.05)
+  
+  deRes$padj_ihw <- NA_real_
+  deRes$padj_ihw[keep] <- adj_pvalues(ihwRes)
+  
+  # Store
+  results_raw[[paste0("res_", nm)]]  <- res
+  results_tbls[[paste0("res_", nm)]] <- deRes
+  ihw_objs[[paste0("ihw_", nm)]]     <- ihwRes
 }
-names(results) <- paste0("res_", names(contrasts))
+
+# Rejected null hypotheses in IHW results
+lapply(ihw_objs, rejections)
 gc()
 
-# Independent filtering
-metadata(results[[1]])$filterThreshold
-# 5.816327% of genes do not pass the threshold
-# 0.07400563
+# IHW diagnostics #####
 
-metadata(results[[2]])$filterThreshold
-# 34.89796% of genes do not pass the threshold
-# 3.011231
+# Create output dirs for diagnostics
+diag_root <- "Results/DGEA/IHW_diagnostics"
+if (!dir.exists(diag_root)) dir.create(diag_root, recursive = TRUE)
 
-metadata(results[[3]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
+for (nm in names(ihw_objs)) {
+  ihw_obj <- ihw_objs[[nm]]
+  res_name <- sub("^ihw_", "res_", nm)
+  deRes <- results_tbls[[res_name]]
+  out_dir <- file.path(diag_root, nm)
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+  
+  # 1) Official IHW diagnostic plot (weights vs covariate strata, stratified p-value histograms)
+  pdf_file <- file.path(out_dir, paste0(nm, "_ihw_diagnostic_plot.pdf"))
+  obj <- plot(ihw_objs[[nm]])  # build plots
+  
+  grDevices::pdf(pdf_file, width = 8, height = 5, onefile = TRUE)
+  if (is.list(obj)) {
+    for (g in obj) {
+      if (inherits(g, "ggplot")) {
+        print(g)
+      } else {
+        grid::grid.newpage(); grid::grid.draw(g)
+      }
+    }
+  } else {
+    if (inherits(obj, "ggplot")) {
+      print(obj)
+    } else {
+      grid::grid.newpage(); grid::grid.draw(obj)
+    }
+  }
+  dev.off()
+  
+  # 2) Stratified p-value histograms by baseMean quintiles (null-independence visual check)
+  dfp <- deRes[is.finite(deRes$pvalue) & !is.na(deRes$baseMean), c("pvalue","baseMean")]
+  if (nrow(dfp) > 0) {
+    dfp$bin <- cut(rank(dfp$baseMean)/nrow(dfp),
+                   breaks = seq(0, 1, by = 0.2),
+                   include.lowest = TRUE,
+                   labels = paste0("Q", 1:5))
+    p_hist <- ggplot2::ggplot(dfp, aes(x = pvalue)) +
+      geom_histogram(bins = 40, color = "grey20", fill = "grey70") +
+      facet_wrap(~bin, nrow = 1) +
+      labs(title = paste0(nm, " — p-value histograms by baseMean quintiles"),
+           x = "p-value", y = "Count") +
+      theme_minimal(base_size = 10)
+    ggplot2::ggsave(filename = file.path(out_dir, paste0(nm, "_pval_hist_by_quintile.png")),
+                    plot = p_hist, width = 260, height = 70, units = "mm",
+                    dpi = 300)
+  }
+  
+  # 3) Rejection summaries (BH vs IHW) overall and by baseMean quintile
+  deRes$padj_bh <- p.adjust(deRes$pvalue, method = "BH")
+  deRes$ihw_reject <- !is.na(deRes$padj_ihw) & deRes$padj_ihw < 0.05
+  deRes$bh_reject  <- !is.na(deRes$padj_bh)  & deRes$padj_bh  < 0.05
+  
+  # overall counts
+  overall <- data.frame(
+    contrast   = nm,
+    bh_rejects = sum(deRes$bh_reject,  na.rm = TRUE),
+    ihw_rejects= sum(deRes$ihw_reject, na.rm = TRUE),
+    stringsAsFactors = FALSE
+  )
+  
+  # by quintile
+  dfq <- deRes[is.finite(deRes$pvalue) & !is.na(deRes$baseMean), ]
+  if (nrow(dfq) > 0) {
+    dfq$bin <- cut(rank(dfq$baseMean)/nrow(dfq),
+                   breaks = seq(0, 1, by = 0.2),
+                   include.lowest = TRUE,
+                   labels = paste0("Q", 1:5))
+    byq <- dfq %>%
+      dplyr::group_by(bin) %>%
+      dplyr::summarise(
+        n = dplyr::n(),
+        bh_rejects  = sum(bh_reject,  na.rm = TRUE),
+        ihw_rejects = sum(ihw_reject, na.rm = TRUE),
+        prop_bh_rejects  = bh_rejects / n,
+        prop_ihw_rejects = ihw_rejects / n,
+        # uniformity sanity check for large p-values within strata
+        prop_p_gt_0.5 = mean(pvalue > 0.5, na.rm = TRUE),
+        .groups = "drop"
+      )
+    readr::write_csv(overall, file.path(out_dir, paste0(nm, "_overall_rejections.csv")))
+    readr::write_csv(byq,     file.path(out_dir, paste0(nm, "_rejections_by_quintile.csv")))
+  } else {
+    readr::write_csv(overall, file.path(out_dir, paste0(nm, "_overall_rejections.csv")))
+  }
+  
+  # 4) Quick console summary for go/no-go
+  cat("\n========== IHW diagnostics for", nm, "==========\n")
+  cat("BH rejects:", overall$bh_rejects, " | IHW rejects:", overall$ihw_rejects, "\n")
+  if (exists("byq")) {
+    print(byq)
+    cat("Heuristic check: prop_p_gt_0.5 should be ~0.5 in each bin under null-uniformity.\n")
+    rm(byq)
+  }
+}
 
-metadata(results[[4]])$filterThreshold
-# 34.89796% of genes do not pass the threshold
-# 3.011231
+rm(diag_root, out_dir, ihw_obj, res_name, deRes, dfp, dfq, overall, p_hist, nm)
+gc()
 
-metadata(results[[5]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-metadata(results[[6]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-metadata(results[[7]])$filterThreshold
-# 32.95918% of genes do not pass the threshold
-# 2.317844
-
-# Shrinking logFCs
+# Shrinking logFCs #####
 # apeglm_shrunk_results = list() # apeglm does not work with contrasts
 # normal_shrunk_results = list() # normal cannot be implemented with interactions designs
-ashr_shrunk_results = list()
+ashr_shrunk_results_raw <- list()  # DESeqResults with shrunken LFCs
+ashr_shrunk_tbls       <- list()  # data.frames with log2FC_shrunk + padj_ihw retained
 
-for (i in 1:length(results)) {
-  # normal_shrunk_results[[i]] = lfcShrink(dds_Wald, contrast = contrasts[[i]], type = "normal")
-  ashr_shrunk_results[[i]] = lfcShrink(dds_Wald_filt, res = results[[i]], type = "ashr")
-  # ashr_shrunk_results[[i]]@listData$betaConv <- beta_conv
-  # ashr_shrunk_results[[i]]@listData$Note <- ifelse(ashr_shrunk_results[[i]]@listData$betaConv == FALSE, 
-  #                                                  "Non-converged", "")
+for (nm in names(contrasts)) {
+  res_nm <- paste0("res_", nm)
+  
+  # 1) Shrink using the *same* fitted contrast by passing the DESeqResults
+  shr <- lfcShrink(dds_Wald_filt, res = results_raw[[res_nm]], type = "ashr")
+  
+  # 2) Tidy + merge with your IHW table so we preserve pvalue/padj/padj_ihw
+  shr_df <- as.data.frame(shr)
+  shr_df$gene <- rownames(shr_df)
+  shr_df <- shr_df[, c("gene","baseMean","log2FoldChange","lfcSE")]
+  
+  # keep original names and add a clear column for shrunk LFC
+  colnames(shr_df)[colnames(shr_df) == "log2FoldChange"] <- "log2FC_shrunk"
+  colnames(shr_df)[colnames(shr_df) == "lfcSE"]          <- "lfcSE_shrunk"
+  
+  # merge with the IHW-augmented table you already made
+  merged <- merge(
+    results_tbls[[res_nm]],  # has gene, baseMean, log2FoldChange (MLE), lfcSE, stat, pvalue, padj, padj_ihw
+    shr_df[, c("gene","log2FC_shrunk","lfcSE_shrunk")],
+    by = "gene",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  
+  # store
+  ashr_shrunk_results_raw[[res_nm]] <- shr
+  ashr_shrunk_tbls[[res_nm]]        <- merged
 }
-names(ashr_shrunk_results) = names(results)
 
-# Create a workbook and save data there to export later
-dgea_wb <- createWorkbook()
+## ---- Workbooks, styles ----
+dgea_wb        <- createWorkbook()
 dgea_wb_shrunk <- createWorkbook()
 
-# Create header and body styles
 header_style <- createStyle(textDecoration = "bold")
-body_style <- createStyle(halign = "left", valign = "center")
+body_style   <- createStyle(halign = "left", valign = "center")
 
-# Set color_handle to TRUE to enable coloring
-color_handle <- FALSE  # Change this to TRUE to enable colored symbols
+color_handle <- FALSE  # set TRUE to enable coloured gene symbols
 
 if (color_handle) {
-  blue_style <- createStyle(fontColour = "#279AE5", textDecoration = "bold")  # Blue and bold
-  red_style <- createStyle(fontColour = "#B91B60", textDecoration = "bold")   # Red and bold
-  grey_style <- createStyle(fontColour = "#818383", textDecoration = "bold")  # Grey and bold
+  blue_style <- createStyle(fontColour = "#279AE5", textDecoration = "bold")  # down
+  red_style  <- createStyle(fontColour = "#B91B60", textDecoration = "bold")  # up
+  grey_style <- createStyle(fontColour = "#818383", textDecoration = "bold")  # ns
   
-  # Function to determine the color style based on conditions
-  getStyle <- function(log2foldchange, padj) {
-    if (is.na(log2foldchange) | is.na(padj)) {
-      return(grey_style)
-    } else if (log2foldchange < 0 & padj < 0.05) {
-      return(blue_style)
-    } else if (log2foldchange > 0 & padj < 0.05) {
-      return(red_style)
-    } else {
-      return(grey_style)
-    }
+  getStyle <- function(lfc, padj) {
+    if (is.na(lfc) || is.na(padj))        return(grey_style)
+    if (lfc < 0  && padj < 0.05)          return(blue_style)
+    if (lfc > 0  && padj < 0.05)          return(red_style)
+    return(grey_style)
   }
 }
 
-# Create short sheet names
-short_sheet_names <- c("TR_vs_TNR", "LTR_vs_ETR", "ETR_vs_ETNR", "LTR_vs_LTNR",
-                       "L_vs_E", "LTNR_vs_ETNR", "LT_vs_ET")
-short_sheet_names_ashr <- paste0("ashr_", short_sheet_names)
+## ---- Map contrast names -> short sheet names ----
+short_names <- c(
+  tumor_rec_vs_tumor_no_rec             = "TR_vs_TNR",
+  late_tumor_rec_vs_early_tumor_rec     = "LTR_vs_ETR",
+  early_tumor_rec_vs_early_tumor_no_rec = "ETR_vs_ETNR",
+  late_tumor_rec_vs_late_tumor_no_rec   = "LTR_vs_LTNR"
+)
 
-# Loop through results
-for (i in seq_along(results)) {
-  # Raw LFCs
-  genes <- rownames(results[[i]])
-  res <- results[[i]]@listData %>%
-    as.data.frame() %>%
-    mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj) %>%
-    dplyr::select(Gene.Symbol, everything())
-  
-  # Add worksheet and write data
-  addWorksheet(dgea_wb, short_sheet_names[i])
-  writeData(dgea_wb, short_sheet_names[i], res)
-  
-  # Apply header style
-  addStyle(dgea_wb, sheet = short_sheet_names[i], style = header_style,
-           rows = 1, cols = 1:ncol(res), gridExpand = TRUE)
-  
-  # Apply body style
-  addStyle(dgea_wb, sheet = short_sheet_names[i], style = body_style,
-           rows = 2:(nrow(res) + 1), cols = 1:ncol(res), gridExpand = TRUE)
-  
-  if (color_handle) {
-    # Generate color styles for each gene
-    color_styles <- mapply(getStyle, res$log2FoldChange, res$padj, SIMPLIFY = FALSE)
-    
-    # Apply color styles to the 'Gene.Symbol' column
+## ---- Helper to write one sheet ----
+.write_sheet <- function(wb, sheet, df, lfc_col, padj_col, color_handle=FALSE) {
+  addWorksheet(wb, sheet)
+  writeData(wb, sheet, df)
+  addStyle(wb, sheet=sheet, style=header_style, rows=1, cols=1:ncol(df), gridExpand=TRUE)
+  if (nrow(df) > 0) {
+    addStyle(wb, sheet=sheet, style=body_style, rows=2:(nrow(df)+1), cols=1:ncol(df), gridExpand=TRUE)
+  }
+  if (color_handle && nrow(df) > 0) {
+    color_styles <- mapply(getStyle, df[[lfc_col]], df[[padj_col]], SIMPLIFY = FALSE)
+    gs_col <- which(colnames(df) == "Gene.Symbol")
     for (j in seq_along(color_styles)) {
-      addStyle(dgea_wb, sheet = short_sheet_names[i],
-               style = color_styles[[j]],
-               rows = j + 1,  # Adjust for header row
-               cols = which(colnames(res) == "Gene.Symbol"),
-               gridExpand = FALSE,
-               stack = TRUE)
-    }
-  }
-  
-  # ASHR LFCs
-  genes_ashr <- rownames(ashr_shrunk_results[[i]])
-  res_ashr <- ashr_shrunk_results[[i]]@listData %>%
-    as.data.frame() %>%
-    mutate(Gene.Symbol = genes_ashr) %>%
-    dplyr::arrange(padj) %>%
-    dplyr::select(Gene.Symbol, everything())
-  
-  # Add worksheet and write data
-  addWorksheet(dgea_wb_shrunk, short_sheet_names_ashr[i])
-  writeData(dgea_wb_shrunk, short_sheet_names_ashr[i], res_ashr)
-  
-  # Apply header style
-  addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i], style = header_style,
-           rows = 1, cols = 1:ncol(res_ashr), gridExpand = TRUE)
-  
-  # Apply body style
-  addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i], style = body_style,
-           rows = 2:(nrow(res_ashr) + 1), cols = 1:ncol(res_ashr), gridExpand = TRUE)
-  
-  if (color_handle) {
-    # Generate color styles for each gene
-    color_styles_ashr <- mapply(getStyle, res_ashr$log2FoldChange, res_ashr$padj, SIMPLIFY = FALSE)
-    
-    # Apply color styles to the 'Gene.Symbol' column
-    for (j in seq_along(color_styles_ashr)) {
-      addStyle(dgea_wb_shrunk, sheet = short_sheet_names_ashr[i],
-               style = color_styles_ashr[[j]],
-               rows = j + 1,  # Adjust for header row
-               cols = which(colnames(res_ashr) == "Gene.Symbol"),
-               gridExpand = FALSE,
-               stack = TRUE)
+      addStyle(wb, sheet=sheet, style=color_styles[[j]], rows=j+1, cols=gs_col, gridExpand=FALSE, stack=TRUE)
     }
   }
 }
 
-# Save workbooks
-saveWorkbook(dgea_wb, "Results/DGEA/DGEA_raw.xlsx", overwrite = TRUE)
-saveWorkbook(dgea_wb_shrunk, "Results/DGEA/DGEA_ashr.xlsx", overwrite = TRUE)
+## ---- RAW workbook: results_tbls (uses padj_ihw if present) ----
+for (nm in names(short_names)) {
+  res_nm <- paste0("res_", nm)
+  if (!res_nm %in% names(results_tbls)) next
+  
+  df <- results_tbls[[res_nm]]
+  # ensure a consistent column set and sorting
+  if (!"gene" %in% names(df)) df$gene <- rownames(df)
+  df$Gene.Symbol <- df$gene
+  
+  # pick adj p column: prefer padj_ihw, else padj
+  padj_col <- if ("padj_ihw" %in% names(df)) "padj_ihw" else "padj"
+  lfc_col  <- "log2FoldChange"
+  
+  keep_cols <- c("Gene.Symbol","baseMean","log2FoldChange","lfcSE","stat","pvalue","padj", 
+                 if ("padj_ihw" %in% names(df)) "padj_ihw" else NULL)
+  keep_cols <- intersect(keep_cols, names(df))
+  
+  df_out <- df[, keep_cols]
+  # sort by chosen adjusted p
+  ord <- order(ifelse(is.na(df_out[[padj_col]]), Inf, df_out[[padj_col]]), na.last = TRUE)
+  df_out <- df_out[ord, , drop=FALSE]
+  
+  .write_sheet(dgea_wb, short_names[[nm]], df_out, lfc_col=lfc_col, padj_col=padj_col, color_handle=color_handle)
+}
+
+## ---- ASHR-shrunk workbook: ashr_shrunk_tbls (includes shrunk LFCs) ----
+for (nm in names(short_names)) {
+  res_nm <- paste0("res_", nm)
+  if (!res_nm %in% names(ashr_shrunk_tbls)) next
+  
+  df <- ashr_shrunk_tbls[[res_nm]]
+  if (!"gene" %in% names(df)) df$gene <- rownames(df)
+  df$Gene.Symbol <- df$gene
+  
+  padj_col <- if ("padj_ihw" %in% names(df)) "padj_ihw" else "padj"
+  lfc_col  <- if ("log2FC_shrunk" %in% names(df)) "log2FC_shrunk" else "log2FoldChange"
+  
+  keep_cols <- c("Gene.Symbol","baseMean",
+                 # show both MLE and shrunk if available
+                 if ("log2FoldChange" %in% names(df)) "log2FoldChange" else NULL,
+                 if ("log2FC_shrunk" %in% names(df)) "log2FC_shrunk" else NULL,
+                 if ("lfcSE" %in% names(df)) "lfcSE" else NULL,
+                 if ("lfcSE_shrunk" %in% names(df)) "lfcSE_shrunk" else NULL,
+                 "stat","pvalue","padj",
+                 if ("padj_ihw" %in% names(df)) "padj_ihw" else NULL)
+  keep_cols <- intersect(keep_cols, names(df))
+  
+  df_out <- df[, keep_cols]
+  ord <- order(ifelse(is.na(df_out[[padj_col]]), Inf, df_out[[padj_col]]), na.last = TRUE)
+  df_out <- df_out[ord, , drop=FALSE]
+  
+  .write_sheet(dgea_wb_shrunk, paste0("ashr_", short_names[[nm]]), df_out,
+               lfc_col=lfc_col, padj_col=padj_col, color_handle=color_handle)
+}
+
+## ---- Save ----
+saveWorkbook(dgea_wb,        "Results/DGEA/DGEA_raw.xlsx",   overwrite = TRUE)
+saveWorkbook(dgea_wb_shrunk, "Results/DGEA/DGEA_ashr.xlsx",  overwrite = TRUE)
 
 # Clean up
-rm(genes, res, res_ashr, i, dgea_wb, dgea_wb_shrunk); gc()
+rm(dgea_wb, dgea_wb_shrunk, df, df_out, res_nm, nm, ord, short_names); gc()
 
 # MA-plots #####
 plot_ma <- function(data, title, show_legend=FALSE) {
-  # Create a named vector for colors and labels
   color_values <- c("blue" = "blue", "grey" = "grey")
   color_labels <- c("blue" = "Significant", "grey" = "Not significant")
   
-  # Start building the plot
   p <- ggplot(data, aes(x = mean_counts, y = log2FoldChange)) +
     geom_point(aes(color = Color), size = 0.5, alpha = 0.5)
   
-  # Add scale_color_manual with or without guide based on show_legend
   if (show_legend) {
     p <- p + scale_color_manual(values = color_values,
                                 labels = color_labels,
@@ -374,73 +410,78 @@ plot_ma <- function(data, title, show_legend=FALSE) {
                                 guide = "none")
   }
   
-  # Continue building the plot
   p <- p +
     geom_hline(yintercept = 0, color = "black", linetype = "dashed") +
     labs(title = title,
          x = expression(bold("Mean of Log"[2]*" (normalized counts + 1)")),
          y = expression(bold("Log"[2]*" fold change"))) +
     theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-  
-  # Position the legend on the right if show_legend is TRUE
-  if (show_legend) {
-    p <- p + theme(legend.position = "right")
-  } else {
-    p <- p + theme(legend.position = "none")
-  }
+    theme(plot.title = element_text(hjust = 0.5, face = "bold")) +
+    theme(legend.position = if (show_legend) "right" else "none")
   
   return(p)
 }
 
+# objects adapted to new pipeline
+plot_list_raw    <- results_tbls
+plot_list_shrunk <- ashr_shrunk_tbls
 
-for (i in 1:length(results)) {
-  # Extract data from results
-  res_df <- as.data.frame(results[[i]])
+for (i in 1:length(plot_list_raw)) {
+  # Construct raw results data.frame
+  res_df <- as.data.frame(plot_list_raw[[i]])
+  if ("gene" %in% colnames(res_df)) rownames(res_df) <- res_df$gene
+  if ("Gene.Symbol" %in% colnames(res_df)) rownames(res_df) <- res_df$Gene.Symbol
   
-  # Get log2.norm.counts and compute mean normalized counts for each gene
+  # Mean of log2(normalized counts + 1)
   mean_norm_counts <- rowMeans(log2.norm.counts.plus1)
   
-  # Ensure that the genes are matched correctly
-  # Subset mean_norm_counts to include only genes in res_df
+  # Align genes
   common_genes <- intersect(rownames(res_df), names(mean_norm_counts))
-  res_df <- res_df[common_genes, ]
+  res_df <- res_df[common_genes, , drop = FALSE]
   mean_norm_counts <- mean_norm_counts[common_genes]
   
-  # Add mean_norm_counts to res_df
+  # Add mean_counts and p-value column to use (prefer IHW)
   res_df$mean_counts <- mean_norm_counts
+  res_df$padj_use <- if ("padj_ihw" %in% colnames(res_df) && any(!is.na(res_df$padj_ihw))) res_df$padj_ihw else res_df$padj
   
-  # Remove rows with NA in 'log2FoldChange' or 'mean_counts'
-  res_df <- res_df[!is.na(res_df$log2FoldChange) & !is.na(res_df$mean_counts), ]
+  # Keep rows with finite LFC, mean_counts, and padj_use
+  res_df <- res_df[is.finite(res_df$log2FoldChange) & is.finite(res_df$mean_counts), , drop = FALSE]
   
-  # Create 'Color' column based on your logic
-  res_df$Color <- ifelse(res_df$padj < 0.05, "blue", "grey")
+  # Color by significance (avoid name-matching that produced NAs)
+  res_df$Color <- ifelse(!is.na(res_df$padj_use) & res_df$padj_use < 0.05, "blue", "grey")
+  res_df$Color <- factor(res_df$Color, levels = c("grey", "blue"))
   
-  # Repeat similar steps for ashr_shrunk_results
-  res_shrunk_df <- as.data.frame(ashr_shrunk_results[[i]])
+  # Shrunk results
+  res_shrunk_df <- as.data.frame(plot_list_shrunk[[i]])
+  if ("gene" %in% colnames(res_shrunk_df)) rownames(res_shrunk_df) <- res_shrunk_df$gene
+  if ("Gene.Symbol" %in% colnames(res_shrunk_df)) rownames(res_shrunk_df) <- res_shrunk_df$Gene.Symbol
   
-  # Ensure genes are matched
-  res_shrunk_df <- res_shrunk_df[common_genes, ]
+  # Align to the same common genes
+  res_shrunk_df <- res_shrunk_df[common_genes, , drop = FALSE]
   
-  # Add mean_counts to res_shrunk_df
+  # Use shrunk LFCs if present
+  if ("log2FC_shrunk" %in% colnames(res_shrunk_df)) {
+    res_shrunk_df$log2FoldChange <- res_shrunk_df$log2FC_shrunk
+  }
+  
+  # Add mean_counts and p-value column to use (prefer IHW)
   res_shrunk_df$mean_counts <- mean_norm_counts
+  res_shrunk_df$padj_use <- if ("padj_ihw" %in% colnames(res_shrunk_df) && any(!is.na(res_shrunk_df$padj_ihw))) res_shrunk_df$padj_ihw else res_shrunk_df$padj
   
-  # Remove rows with NA in 'log2FoldChange' or 'mean_counts'
-  res_shrunk_df <- res_shrunk_df[!is.na(res_shrunk_df$log2FoldChange) & !is.na(res_shrunk_df$mean_counts), ]
+  # Keep rows with finite LFC, mean_counts
+  res_shrunk_df <- res_shrunk_df[is.finite(res_shrunk_df$log2FoldChange) & is.finite(res_shrunk_df$mean_counts), , drop = FALSE]
   
-  # Ensure 'Note' column matches the filtered res_df
-  res_shrunk_df$Note <- res_df$Note[match(rownames(res_shrunk_df), rownames(res_df))]
+  # Color by significance
+  res_shrunk_df$Color <- ifelse(!is.na(res_shrunk_df$padj_use) & res_shrunk_df$padj_use < 0.05, "blue", "grey")
+  res_shrunk_df$Color <- factor(res_shrunk_df$Color, levels = c("grey", "blue"))
   
-  # Create 'Color' column for shrunk results
-  res_shrunk_df$Color <- ifelse(res_shrunk_df$padj < 0.05, "blue", "grey")
-  
-  # Create MA plots
+  # MA plots
   p1 <- plot_ma(res_df, "MA plot: raw LFCs")
   p2 <- plot_ma(res_shrunk_df, "MA plot: ashr shrunk LFCs", show_legend = TRUE)
   
-  # Save the plots side by side
-  tiff(filename = paste0("Results/DGEA/MA_plots/MA_plot_", names(results)[i], ".tiff"),
-       res = 300, width = 4000, height = 2000, compression = "lzw")
+  # Save side-by-side
+  png(filename = paste0("Results/DGEA/MA_plots/MA_plot_", names(plot_list_raw)[i], ".png"),
+      res = 300, width = 4000, height = 2000)
   grid.arrange(p1, p2, ncol = 2)
   dev.off()
 }
@@ -449,13 +490,19 @@ rm(res_df, res_shrunk_df, mean_norm_counts, common_genes, p1, p2); gc()
 
 # Volcano plots #####
 # Volcano loop (raw LFCs)
-for (i in 1:length(results)) {
+for (i in 1:length(results_tbls)) {
   # Construct the data frame
-  genes = rownames(results[[i]])
-  res = results[[i]]@listData %>%
-    as.data.frame() %>% 
-    mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+  genes = if ("gene" %in% colnames(results_tbls[[i]])) results_tbls[[i]]$gene else rownames(results_tbls[[i]])
+  res = results_tbls[[i]] %>%
+    as.data.frame() %>%
+    mutate(Gene.Symbol = if ("Gene.Symbol" %in% colnames(.)) Gene.Symbol else genes)
+  
+  # prefer IHW-adjusted p where available
+  if ("padj_ihw" %in% colnames(res)) {
+    res$padj_bh <- res$padj
+    res$padj    <- res$padj_ihw
+  }
+  res <- dplyr::arrange(res, padj)
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -494,7 +541,7 @@ for (i in 1:length(results)) {
                             legendLabSize = 8,
                             legendIconSize = 4,
                             title = paste0("Volcano plot: contrast = ",
-                                           names(results)[i]),
+                                           names(results_tbls)[i]),
                             labFace = "bold",
                             boxedLabels = TRUE,
                             drawConnectors = TRUE,
@@ -520,21 +567,32 @@ for (i in 1:length(results)) {
           legend.box.background = element_rect(colour = "black"))
   
   volcano
-  ggsave(filename = paste0("Volcano_raw_LFCs_", names(results)[i], ".tiff"),
+  ggsave(filename = paste0("Volcano_raw_LFCs_", names(results_tbls)[i], ".png"),
          path = "Results/DGEA/Volcano_plots", 
-         width = 152, height = 142, device = 'tiff', units = "mm",
-         dpi = 700, compression = "lzw")
+         width = 152, height = 142, device = 'png', units = "mm",
+         dpi = 700)
 }
 rm(genes, i, res, keyvals.colour, volcano)
 
 # Volcano loop (ashr-shrunk LFCs)
-for (i in 1:length(ashr_shrunk_results)) {
+for (i in 1:length(ashr_shrunk_tbls)) {
   # Construct the data frame
-  genes = rownames(ashr_shrunk_results[[i]])
-  res = ashr_shrunk_results[[i]]@listData %>%
+  genes = if ("gene" %in% colnames(ashr_shrunk_tbls[[i]])) ashr_shrunk_tbls[[i]]$gene else rownames(ashr_shrunk_tbls[[i]])
+  res = ashr_shrunk_tbls[[i]] %>%
     as.data.frame() %>% 
-    mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
+    mutate(Gene.Symbol = if ("Gene.Symbol" %in% colnames(.)) Gene.Symbol else genes)
+  
+  # prefer IHW-adjusted p where available
+  if ("padj_ihw" %in% colnames(res)) {
+    res$padj_bh <- res$padj
+    res$padj    <- res$padj_ihw
+  }
+  
+  # use shrunk LFCs if available
+  if ("log2FC_shrunk" %in% colnames(res)) {
+    res$log2FoldChange <- res$log2FC_shrunk
+  }
+  res <- dplyr::arrange(res, padj)
   
   # create custom key-value pairs for stat. sig genes (p.adj < 0.05) and n.s genes
   keyvals.colour <- ifelse(
@@ -573,7 +631,7 @@ for (i in 1:length(ashr_shrunk_results)) {
                             legendLabSize = 8,
                             legendIconSize = 4,
                             title = paste0("Volcano plot: contrast = ",
-                                           names(results)[i]),
+                                           names(ashr_shrunk_tbls)[i]),
                             labFace = "bold",
                             boxedLabels = TRUE,
                             drawConnectors = TRUE,
@@ -599,30 +657,35 @@ for (i in 1:length(ashr_shrunk_results)) {
           legend.box.background = element_rect(colour = "black"))
   
   volcano
-  ggsave(filename = paste0("Volcano_ashr_shrunk_LFCs_", names(ashr_shrunk_results)[i], ".tiff"),
+  ggsave(filename = paste0("Volcano_ashr_shrunk_LFCs_", names(ashr_shrunk_tbls)[i], ".png"),
          path = "Results/DGEA/Volcano_plots", 
-         width = 152, height = 142, device = 'tiff', units = "mm",
-         dpi = 700, compression = "lzw")
+         width = 152, height = 142, device = 'png', units = "mm",
+         dpi = 700)
 }
 rm(genes, i, res, keyvals.colour, volcano)
 
+# Post-DGEA heatmaps #####
 # Number of features for plots
 n_degs = 50
 
+# VST transformation for tumor samples
+vsd_tumor = varianceStabilizingTransformation(dds_Wald_filt[, dds_Wald_filt$Sample.type == "Tumor"],
+                                                        blind = TRUE)
+
 # Top n_degs variable genes fromt the VST object
-topVarGenes = head(order(rowVars(assay(vsd)), decreasing = TRUE), n_degs)
-matvar  = assay(vsd)[topVarGenes, ]
+topVarGenes = head(order(rowVars(assay(vsd_tumor)), decreasing = TRUE), n_degs)
+matvar  = assay(vsd_tumor)[topVarGenes, ]
 matvar  = matvar - rowMeans(matvar)
-colnames(matvar) = colnames(assay(vsd))
-anno = as.data.frame(colData(vsd)[, c("Sample.type", "Stage", "Recurrence")])
+colnames(matvar) = colnames(assay(vsd_tumor))
+anno = as.data.frame(colData(vsd_tumor)[, c("Sample.type", "Stage", "Recurrence")])
 
 # Create a custom palette with 20*14 = 280 color breaks (one for each tile)
 colors2 = colorRampPalette(c(viridisLite::mako(280)[140:280],
                              rev(viridisLite::rocket(280)[140:280])))(280)
 
-tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/VST_top", n_degs, "vargenes_samples_heatmap.tiff"),
+png(paste0("Results/DGEA/Post_DGEA_heatmaps/VST_top", n_degs, "vargenes_samples_heatmap.png"),
      res = 700, width = 6760, 
-     height = 4760, compression = "lzw")
+     height = 4760)
 pheatmap(matvar, annotation_col = anno,
          col = colors2,
          fontsize = 8,
@@ -634,194 +697,91 @@ pheatmap(matvar, annotation_col = anno,
 dev.off()
 
 # Filtered cohorts for filtered heatmaps
-pheno_filt = Pheno[!Pheno$Patient.ID %in% outliers, ]
+pheno_filt = Pheno[Pheno$Patient.ID %in% colnames(dds_Wald_filt), ]
 filtered_samples1 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor"]
 filtered_samples2 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
-                                       pheno_filt$Recurrence == "Recurrence"]
+                                            pheno_filt$Recurrence == "Recurrence"]
 filtered_samples3 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
-                                       pheno_filt$Stage == "Early"]
+                                            pheno_filt$Stage == "Early"]
 filtered_samples4 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
-                                       pheno_filt$Stage == "Late"]
-filtered_samples5 = pheno_filt$Patient.ID
-filtered_samples6 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor" &
-                                       pheno_filt$Recurrence == "No recurrence"]
-filtered_samples7 = pheno_filt$Patient.ID[pheno_filt$Sample.type == "Tumor"]
+                                            pheno_filt$Stage == "Late"]
 filtered_samples = list(filtered_samples1, filtered_samples2,
-                        filtered_samples3, filtered_samples4,
-                        filtered_samples5, filtered_samples6,
-                        filtered_samples7)
-names(filtered_samples) = names(ashr_shrunk_results)
-rm(filtered_samples1, filtered_samples2, filtered_samples3, filtered_samples4,
-   filtered_samples5, filtered_samples6, filtered_samples7); gc()
-columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence",
-                        "Stage", "Stage", "Stage")
+                        filtered_samples3, filtered_samples4)
+names(filtered_samples) = names(results_tbls)
+rm(filtered_samples1, filtered_samples2, filtered_samples3, filtered_samples4); gc()
+columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence")
+
+# Export standardized normalized counts
+# Firstly, transform the normalized counts with a data-driven pseudocount
+# https://www.biorxiv.org/content/10.1101/404962v1.full -> Process description
+
+# We need a grouping for the OSCC samples. We are going to go for 
+# Recurrence vs No recurrence
+rec_samples = pheno_filt$Patient.ID[pheno_filt$Recurrence == "Recurrence"]
+norec_samples = pheno_filt$Patient.ID[pheno_filt$Recurrence == "No recurrence"]
+
+# Get size factors
+# Mock sample conditions
+sample_conditions <- data.frame(
+  row.names = colnames(counts(dds_Wald_filt)),
+  condition = factor(rep("condition", ncol(counts(dds_Wald_filt))))
+)
+
+# Create DESeqDataSet object
+dds_null <- DESeqDataSetFromMatrix(countData = counts(dds_Wald_filt), 
+                                   colData = sample_conditions, 
+                                   design = ~ 1) 
+
+# Estimate size factors
+dds_null <- estimateSizeFactors(dds_null)
+
+# Save size factors for later if needed
+size_factors = dds_null$sizeFactor
+names(size_factors) = dds_null@colData@rownames
+
+# Get the normalized counts
+normalized_counts <- counts(dds_null, normalized = TRUE)
+
+# Assign proper row and column names to the normalized counts
+rownames(normalized_counts) = rownames(counts(dds_Wald_filt))
+colnames(normalized_counts) = colnames(counts(dds_Wald_filt))
+
+# Estimate averages
+avg_rec_size_factor = mean(size_factors[rec_samples], na.rm = TRUE)
+avg_norec_size_factor = mean(size_factors[norec_samples], na.rm = TRUE)
+sf = c(avg_rec_size_factor, avg_norec_size_factor)
+
+# Lun et al. suggest pseudocount = max{1, r|1/smin - 1/smax|}, where r = 1 (suggestion)
+pseudocount_RNA = max(c(1, abs(1/min(sf) - 1/max(sf)))) # 1
+
+# We proceed with the log2(norm.counts + 1) transformation
+log2.norm.counts.plus1 = log2(normalized_counts + pseudocount_RNA)
+
+# Export
+saveRDS(log2.norm.counts.plus1, "Resources_and_environments/log2.norm.counts.plus1.rds")
+
+rm(rec_samples, norec_samples, sample_conditions, normalized_counts, dds_null, 
+   size_factors, avg_norec_size_factor, avg_rec_size_factor, sf, pseudocount_RNA); gc()
 
 # Heatmaps for raw LFCs
 anno = anno[pheno_filt$Patient.ID, ]
-for (i in 1:length(results)) {
+for (i in 1:length(results_tbls)) {
   # Construct the data frame
-  genes = rownames(results[[i]])
-  res = results[[i]]@listData %>%
-    as.data.frame() %>% 
-    mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj) %>%
+  res = results_tbls[[i]] %>%
+    as.data.frame() %>%
+    mutate(Gene.Symbol = if ("Gene.Symbol" %in% colnames(.)) Gene.Symbol else
+      if ("gene" %in% colnames(.)) gene else rownames(.)) %>%
+    dplyr::arrange(if ("padj_ihw" %in% colnames(.)) padj_ihw else padj) %>%
     na.omit()
   
-  topDEGs = res[which(res$padj < 0.05),] # %>%
-  #  dplyr::filter(!is.na(Gene.Symbol))
+  # choose adj-p for filtering (prefer IHW)
+  padj_use <- if ("padj_ihw" %in% colnames(res)) res$padj_ihw else res$padj
+  
+  topDEGs = res[which(padj_use < 0.05),]
+  if (nrow(topDEGs) == 0) next
+  topDEGs = topDEGs[seq_len(min(n_degs, nrow(topDEGs))), ]
   
   # Gene clustering with raw counts and Poisson distance
-  topDEGs = topDEGs[1:n_degs, ]
-  matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
-  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps) # to avoid NA values
-  DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
-  rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
-  colnames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
-  
-  # Same for genes
-  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol,]) + .Machine$double.eps)
-  DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
-  rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
-  colnames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
-  
-  # Log-transformed matrix
-  logmat = log2(matcount + 1)
-  
-  # The same matrix but order samples by recurrence status and genes by logFC (raw)
-  genes_order = topDEGs %>% dplyr::filter(padj < 0.05) %>%
-    arrange(log2FoldChange)
-  gaps_row = length(which(genes_order$log2FoldChange < 0))
-  genes_order = genes_order$Gene.Symbol
-  
-  sample_order = anno %>% dplyr::arrange(Recurrence)
-  gaps_col = length(which(sample_order$Recurrence == "No recurrence"))
-  sample_order = rownames(sample_order)
-  
-  matcount_ordered = matcount[genes_order, sample_order]
-  
-  # Mean-centering
-  logmat_znorm = (logmat - rowMeans(logmat))/sqrt(rowVars(logmat))
-  logmat_ordered_znorm = logmat_znorm[genes_order, sample_order]
-  
-  # In the plot below the cluster distances are not affected by the log-transformation
-  # of the matrix. It is only used to make a smoother color scale
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
-              names(results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
-       res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_znorm, annotation_col = anno,
-           breaks = seq(-4, 4, 8/length(colors2)),
-           annotation_colors = ann_colors,
-           clustering_distance_rows = DEGpoisd_genes$dd,
-           clustering_distance_cols = DEGpoisd$dd,
-           col = colors2,
-           cutree_cols = 2,
-           cutree_rows = 2,
-           fontsize = 8,
-           fontsize_row = 4,
-           fontsize_col = 6,
-           main = paste0(names(results)[i], 
-                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
-           legend_breaks = c(-4, 4),
-           legend_labels = c("lower expression", "higher expression"))
-  dev.off()
-  
-  # Ordered genes and samples
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
-              names(results)[i], "_DEG_samples_ordered.tiff"),
-       res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_ordered_znorm, annotation_col = anno,
-           breaks = seq(-4, 4, 8/length(colors2)),
-           annotation_colors = ann_colors,
-           cluster_rows = FALSE,
-           cluster_cols = FALSE,
-           col = colors2,
-           gaps_row = gaps_row,
-           gaps_col = gaps_col,
-           cutree_cols = 2,
-           fontsize = 8,
-           fontsize_row = 4,
-           fontsize_col = 6,
-           border_color = "grey60",
-           main = paste0(names(results)[i], 
-                         " - DEGs vs. samples heatmap (ordered)"),
-           legend_breaks = c(-4, 4),
-           legend_labels = c("lower expression", "higher expression"))
-  dev.off()
-  
-  # Filtered versions
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
-              names(results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
-       res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_znorm[, filtered_samples[[i]]], annotation_col = anno,
-           breaks = seq(-4, 4, 8/length(colors2)),
-           annotation_colors = ann_colors,
-           clustering_distance_rows = DEGpoisd_genes$dd,
-           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filtered_samples[[i]], filtered_samples[[i]]]),
-           col = colors2,
-           cutree_cols = 2,
-           cutree_rows = 2,
-           fontsize = 8,
-           fontsize_row = 4,
-           fontsize_col = 6,
-           main = paste0(names(results)[i], 
-                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
-           legend_breaks = c(-4, 4),
-           legend_labels = c("lower expression", "higher expression"))
-  dev.off()
-  
-  # Ordered genes and samples
-  column_of_interest = columns_of_interest[i]
-  indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
-  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
-  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
-  gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
-  gaps_col = gaps_col[-length(gaps_col)]
-  new_indices = arrangement$Patient.ID
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
-              names(results)[i], "_DEG_samples_ordered.tiff"),
-       res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_ordered_znorm[, new_indices], 
-           annotation_col = anno[new_indices, ],
-           breaks = seq(-4, 4, 8/length(colors2)),
-           annotation_colors = ann_colors,
-           cluster_rows = FALSE,
-           cluster_cols = FALSE,
-           col = colors2,
-           gaps_row = gaps_row,
-           gaps_col = gaps_col,
-           cutree_cols = 2,
-           fontsize = 8,
-           fontsize_row = 4,
-           fontsize_col = 6,
-           border_color = "grey60",
-           main = paste0(names(results)[i], 
-                         " - DEGs vs. samples heatmap (ordered)"),
-           legend_breaks = c(-4, 4),
-           legend_labels = c("lower expression", "higher expression"))
-  dev.off()
-}
-rm(genes, i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
-   DEGpoisd, DEGpoisd_genes, DEGsamplePoisDistMatrix, logmat, logmat_ordered_znorm,
-   logmat_znorm, sample_order, genes_order, gaps_col, indices, arrangement,
-   new_indices)
-
-# Heatmaps for ashr-shrunk LFCs
-for (i in 1:length(ashr_shrunk_results)) {
-  # Construct the data frame
-  genes = rownames(ashr_shrunk_results[[i]])
-  res = ashr_shrunk_results[[i]]@listData %>%
-    as.data.frame() %>% 
-    mutate(Gene.Symbol = genes) %>%
-    dplyr::arrange(padj)
-  
-  topDEGs = res[which(res$padj < 0.05),]
-  
-  # Gene clustering with raw counts and Poisson distance
-  topDEGs = topDEGs[1:n_degs, ]
   matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol,]
   DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol,])) + .Machine$double.eps)
   DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
@@ -838,27 +798,34 @@ for (i in 1:length(ashr_shrunk_results)) {
   logmat = log2(matcount + 1)
   
   # The same matrix but order samples by recurrence status and genes by logFC (raw)
-  genes_order = topDEGs %>% dplyr::filter(padj < 0.05) %>%
+  genes_order = res %>% dplyr::filter((if ("padj_ihw" %in% colnames(res)) padj_ihw else padj) < 0.05) %>%
     arrange(log2FoldChange)
-  gaps_row = length(which(genes_order$log2FoldChange < 0))
-  genes_order = genes_order$Gene.Symbol
+  # order after intersecting with the available rows
+  ordered_genes = intersect(genes_order$Gene.Symbol, rownames(logmat))
+  
+  # compute gaps_row on the ordered subset; must be strictly inside (1..nrow-1)
+  neg_flags = genes_order$log2FoldChange[match(ordered_genes, genes_order$Gene.Symbol)] < 0
+  gaps_row = sum(neg_flags, na.rm = TRUE)
+  if (is.na(gaps_row) || gaps_row <= 0 || gaps_row >= length(ordered_genes)) gaps_row = NULL
   
   sample_order = anno %>% dplyr::arrange(Recurrence)
+  n_cols_full = nrow(sample_order)
   gaps_col = length(which(sample_order$Recurrence == "No recurrence"))
+  if (gaps_col <= 0 || gaps_col >= n_cols_full) gaps_col = NULL
   sample_order = rownames(sample_order)
   
-  matcount_ordered = matcount[genes_order, sample_order]
+  matcount_ordered = matcount[ordered_genes, sample_order, drop = FALSE]
   
   # Mean-centering
   logmat_znorm = (logmat - rowMeans(logmat))/sqrt(rowVars(logmat))
-  logmat_ordered_znorm = logmat_znorm[genes_order, sample_order]
+  logmat_ordered_znorm = logmat_znorm[ordered_genes, sample_order, drop = FALSE]
   
   # In the plot below the cluster distances are not affected by the log-transformation
   # of the matrix. It is only used to make a smoother color scale
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
-              names(ashr_shrunk_results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
+              names(results_tbls)[i], "_DEG_Poisson_clustered_samples_and_genes.png"),
        res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
+       height = 5760)
   pheatmap(logmat_znorm, annotation_col = anno,
            breaks = seq(-4, 4, 8/length(colors2)),
            annotation_colors = ann_colors,
@@ -870,18 +837,17 @@ for (i in 1:length(ashr_shrunk_results)) {
            fontsize = 8,
            fontsize_row = 4,
            fontsize_col = 6,
-           main = paste0(names(ashr_shrunk_results)[i], 
+           main = paste0(names(results_tbls)[i], 
                          " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
   
-  
   # Ordered genes and samples
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
-              names(ashr_shrunk_results)[i], "_DEG_samples_ordered.tiff"),
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/",
+              names(results_tbls)[i], "_DEG_samples_ordered.png"),
        res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
+       height = 5760)
   pheatmap(logmat_ordered_znorm, annotation_col = anno,
            breaks = seq(-4, 4, 8/length(colors2)),
            annotation_colors = ann_colors,
@@ -895,48 +861,164 @@ for (i in 1:length(ashr_shrunk_results)) {
            fontsize_row = 4,
            fontsize_col = 6,
            border_color = "grey60",
-           main = paste0(names(ashr_shrunk_results)[i], 
+           main = paste0(names(results_tbls)[i], 
                          " - DEGs vs. samples heatmap (ordered)"),
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
   
   # Filtered versions
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
-              names(ashr_shrunk_results)[i], "_DEG_Poisson_clustered_samples_and_genes.tiff"),
+  filt_cols = intersect(filtered_samples[[i]], colnames(logmat_znorm))
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
+              names(results_tbls)[i], "_DEG_Poisson_clustered_samples_and_genes.png"),
        res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_znorm[, filtered_samples[[i]]], annotation_col = anno,
+       height = 5760)
+  pheatmap(logmat_znorm[, filt_cols, drop = FALSE], annotation_col = anno,
            breaks = seq(-4, 4, 8/length(colors2)),
            annotation_colors = ann_colors,
            clustering_distance_rows = DEGpoisd_genes$dd,
-           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filtered_samples[[i]], filtered_samples[[i]]]),
+           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filt_cols, filt_cols]),
            col = colors2,
            cutree_cols = 2,
            cutree_rows = 2,
            fontsize = 8,
            fontsize_row = 4,
            fontsize_col = 6,
-           main = paste0(names(ashr_shrunk_results)[i], 
+           main = paste0(names(results_tbls)[i], 
+                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+  
+  # Ordered genes and samples (filtered)
+  column_of_interest = columns_of_interest[i]
+  indices = colnames(logmat_ordered_znorm) %in% filt_cols
+  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
+  if (nrow(arrangement) > 1) {
+    gcuts = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
+    gcuts = gcuts[gcuts > 0 & gcuts < nrow(arrangement)]
+    gaps_col_filt = if (length(gcuts)) gcuts else NULL
+  } else {
+    gaps_col_filt = NULL
+  }
+  new_indices = arrangement$Patient.ID
+  
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/raw_lfcs/filtered_",
+              names(results_tbls)[i], "_DEG_samples_ordered.png"),
+       res = 700, width = 7260, 
+       height = 5760)
+  pheatmap(logmat_ordered_znorm[, new_indices, drop = FALSE], 
+           annotation_col = anno[new_indices, , drop = FALSE],
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           cluster_rows = FALSE,
+           cluster_cols = FALSE,
+           col = colors2,
+           gaps_row = gaps_row,
+           gaps_col = gaps_col_filt,
+           cutree_cols = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           border_color = "grey60",
+           main = paste0(names(results_tbls)[i], 
+                         " - DEGs vs. samples heatmap (ordered)"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+}
+rm(i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
+   DEGpoisd, DEGpoisd_genes, DEGsamplePoisDistMatrix, logmat, logmat_ordered_znorm,
+   logmat_znorm, sample_order, genes_order, gaps_col, gaps_row, neg_flags,
+   ordered_genes, filt_cols, gaps_col_filt, arrangement, indices); gc()
+
+# Heatmaps for ashr-shrunk LFCs
+anno = anno[pheno_filt$Patient.ID, ]
+for (i in 1:length(ashr_shrunk_tbls)) {
+  # Construct the data frame
+  res = ashr_shrunk_tbls[[i]] %>%
+    as.data.frame() %>%
+    mutate(Gene.Symbol = if ("Gene.Symbol" %in% colnames(.)) Gene.Symbol else
+      if ("gene" %in% colnames(.)) gene else rownames(.)) %>%
+    dplyr::arrange(if ("padj_ihw" %in% colnames(.)) padj_ihw else padj)
+  
+  # choose adj-p for filtering (prefer IHW)
+  padj_use <- if ("padj_ihw" %in% colnames(res)) res$padj_ihw else res$padj
+  topDEGs = res[which(padj_use < 0.05),]
+  if (nrow(topDEGs) == 0) next
+  topDEGs = topDEGs[seq_len(min(n_degs, nrow(topDEGs))), ]
+  
+  # Gene clustering with raw counts and Poisson distance
+  matcount = assay(dds_Wald_filt)[topDEGs$Gene.Symbol, , drop = FALSE]
+  DEGpoisd = PoissonDistance(t(counts(dds_Wald_filt[topDEGs$Gene.Symbol, , drop = FALSE])) + .Machine$double.eps)
+  DEGsamplePoisDistMatrix = as.matrix(DEGpoisd$dd)
+  rownames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
+  colnames(DEGsamplePoisDistMatrix) = dds_Wald_filt$Patient.ID
+  
+  # Same for genes
+  DEGpoisd_genes = PoissonDistance(counts(dds_Wald_filt[topDEGs$Gene.Symbol, , drop = FALSE]) + .Machine$double.eps)
+  DEGgenesPoisDistMatrix = as.matrix(DEGpoisd_genes$dd)
+  rownames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
+  colnames(DEGgenesPoisDistMatrix) = topDEGs$Gene.Symbol
+  
+  # Log-transformed matrix
+  logmat = log2(matcount + 1)
+  
+  # The same matrix but order samples by recurrence status and genes by shrunk logFC
+  # prefer log2FC_shrunk if present
+  lfc_col <- if ("log2FC_shrunk" %in% colnames(res)) "log2FC_shrunk" else "log2FoldChange"
+  genes_order_df = res %>% dplyr::filter(padj_use < 0.05) %>%
+    dplyr::select(Gene.Symbol, !!lfc_col := all_of(lfc_col)) %>%
+    arrange(.data[[lfc_col]])
+  ordered_genes = intersect(genes_order_df$Gene.Symbol, rownames(logmat))
+  
+  # compute gaps_row on the ordered subset; must be strictly inside (1..nrow-1)
+  neg_flags = genes_order_df[[lfc_col]][match(ordered_genes, genes_order_df$Gene.Symbol)] < 0
+  gaps_row = sum(neg_flags, na.rm = TRUE)
+  if (is.na(gaps_row) || gaps_row <= 0 || gaps_row >= length(ordered_genes)) gaps_row = NULL
+  
+  sample_order = anno %>% dplyr::arrange(Recurrence)
+  n_cols_full = nrow(sample_order)
+  gaps_col = length(which(sample_order$Recurrence == "No recurrence"))
+  if (gaps_col <= 0 || gaps_col >= n_cols_full) gaps_col = NULL
+  sample_order = rownames(sample_order)
+  
+  matcount_ordered = matcount[ordered_genes, sample_order, drop = FALSE]
+  
+  # Mean-centering
+  logmat_znorm = (logmat - rowMeans(logmat))/sqrt(rowVars(logmat))
+  logmat_ordered_znorm = logmat_znorm[ordered_genes, sample_order, drop = FALSE]
+  
+  # In the plot below the cluster distances are not affected by the log-transformation
+  # of the matrix. It is only used to make a smoother color scale
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
+              names(ashr_shrunk_tbls)[i], "_DEG_Poisson_clustered_samples_and_genes.png"),
+       res = 700, width = 7260, 
+       height = 5760)
+  pheatmap(logmat_znorm, annotation_col = anno,
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           clustering_distance_rows = DEGpoisd_genes$dd,
+           clustering_distance_cols = DEGpoisd$dd,
+           col = colors2,
+           cutree_cols = 2,
+           cutree_rows = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           main = paste0(names(ashr_shrunk_tbls)[i], 
                          " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
   
   # Ordered genes and samples
-  column_of_interest = columns_of_interest[i]
-  indices = colnames(logmat_ordered_znorm) %in% filtered_samples[[i]]
-  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
-  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
-  gaps_col = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
-  gaps_col = gaps_col[-length(gaps_col)]
-  new_indices = arrangement$Patient.ID
-  tiff(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
-              names(results)[i], "_DEG_samples_ordered.tiff"),
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/",
+              names(ashr_shrunk_tbls)[i], "_DEG_samples_ordered.png"),
        res = 700, width = 7260, 
-       height = 5760, compression = "lzw")
-  pheatmap(logmat_ordered_znorm[, new_indices], 
-           annotation_col = anno[new_indices, ],
+       height = 5760)
+  pheatmap(logmat_ordered_znorm, annotation_col = anno,
            breaks = seq(-4, 4, 8/length(colors2)),
            annotation_colors = ann_colors,
            cluster_rows = FALSE,
@@ -949,18 +1031,77 @@ for (i in 1:length(ashr_shrunk_results)) {
            fontsize_row = 4,
            fontsize_col = 6,
            border_color = "grey60",
-           main = paste0(names(results)[i], 
+           main = paste0(names(ashr_shrunk_tbls)[i], 
+                         " - DEGs vs. samples heatmap (ordered)"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+  
+  # Filtered versions
+  filt_cols = intersect(filtered_samples[[i]], colnames(logmat_znorm))
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
+              names(ashr_shrunk_tbls)[i], "_DEG_Poisson_clustered_samples_and_genes.png"),
+       res = 700, width = 7260, 
+       height = 5760)
+  pheatmap(logmat_znorm[, filt_cols, drop = FALSE], annotation_col = anno,
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           clustering_distance_rows = DEGpoisd_genes$dd,
+           clustering_distance_cols = as.dist(DEGsamplePoisDistMatrix[filt_cols, filt_cols]),
+           col = colors2,
+           cutree_cols = 2,
+           cutree_rows = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           main = paste0(names(ashr_shrunk_tbls)[i], 
+                         " - DEGs vs. samples: Poisson heatmap, cluster cut = 2"),
+           legend_breaks = c(-4, 4),
+           legend_labels = c("lower expression", "higher expression"))
+  dev.off()
+  
+  # Ordered genes and samples
+  column_of_interest = columns_of_interest[i]
+  indices = colnames(logmat_ordered_znorm) %in% filt_cols
+  arrangement = pheno_filt[pheno_filt$Patient.ID %in% colnames(logmat_ordered_znorm)[indices], ]
+  arrangement = arrangement[order(arrangement[[column_of_interest]]), ]
+  if (nrow(arrangement) > 1) {
+    gcuts = as.numeric(cumsum(table(arrangement[[column_of_interest]])))
+    gcuts = gcuts[gcuts > 0 & gcuts < nrow(arrangement)]
+    gaps_col_filt = if (length(gcuts)) gcuts else NULL
+  } else {
+    gaps_col_filt = NULL
+  }
+  new_indices = arrangement$Patient.ID
+  
+  png(paste0("Results/DGEA/Post_DGEA_heatmaps/ashr_shrunk/filtered_",
+              names(ashr_shrunk_tbls)[i], "_DEG_samples_ordered.png"),
+       res = 700, width = 7260, 
+       height = 5760)
+  pheatmap(logmat_ordered_znorm[, new_indices, drop = FALSE], 
+           annotation_col = anno[new_indices, , drop = FALSE],
+           breaks = seq(-4, 4, 8/length(colors2)),
+           annotation_colors = ann_colors,
+           cluster_rows = FALSE,
+           cluster_cols = FALSE,
+           col = colors2,
+           gaps_row = gaps_row,
+           gaps_col = gaps_col_filt,
+           cutree_cols = 2,
+           fontsize = 8,
+           fontsize_row = 4,
+           fontsize_col = 6,
+           border_color = "grey60",
+           main = paste0(names(ashr_shrunk_tbls)[i], 
                          " - DEGs vs. samples heatmap (ordered)"),
            legend_breaks = c(-4, 4),
            legend_labels = c("lower expression", "higher expression"))
   dev.off()
 }
-rm(genes, i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
+rm(i, res, topDEGs, matcount, matcount_ordered, DEGgenesPoisDistMatrix,
    DEGpoisd, DEGpoisd_genes, DEGsamplePoisDistMatrix, logmat, logmat_ordered_znorm,
-   logmat_znorm, sample_order, genes_order, gaps_col, indices, arrangement,
-   new_indices)
-
-gc()
+   logmat_znorm, sample_order, genes_order_df, ordered_genes, neg_flags,
+   gaps_col, gaps_row, gaps_col_filt, filt_cols, arrangement, indices); gc()
 
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
