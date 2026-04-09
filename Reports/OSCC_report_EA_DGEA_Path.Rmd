@@ -435,7 +435,7 @@ Similarly, we apply Multi-Dimensional Scaling (MDS) on the <em>vst</em>-transfor
 
 <b>MDS on the <em>vst</em>-transformed data identifies COHTN-13 as a clear outlier (top of plot A). The small second cluster we saw in the sample distance heatmaps of the <em>vst</em>-transformed data is appearing on the bottom left of plot A. No clear separation is shown in plot B, but if we drew a vertical line at MDS1 = -5000, we would separate that second small cluster on the left, with COHTN-13 presumably at the bottom.</b>
 
-# Sample exlcusion
+# Sample exclusion
 Since our questions are tumor-specific, normal samples are only few (8/40 in total) and early stage normal samples are clear outliers (e.g. COHTN-13), <b>we exclude normal samples from the differential expression analysis to avoid additional noise and model destabilization</b>. This makes our results <b>interpretable in the context of tumors only</b>, but it <b>DOES NOT</b> guarantee some of the changes identified could not also be identified in normal samples (had they been included).
 
 <b>We proceed with the 32 tumor samples</b>. The following table shows the distribution of samples per groups.
