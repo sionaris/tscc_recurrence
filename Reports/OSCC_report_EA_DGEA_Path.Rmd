@@ -359,14 +359,14 @@ Firstly we import and clean up the raw count files:
 </ol>
 
 ## Creating the DESeq2 dataset for QC
-We used a triple interaction term for the original DESeq dataset. The triple interaction term involves all possible interactions between <b>sample type (tumor/normal), recurrence (recurrence/no recurrence) and binned tumor stage (early/late)</b>. 
+<!--We used a triple interaction term for the original DESeq dataset. The triple interaction term involves all possible interactions between <b>sample type (tumor/normal), recurrence (recurrence/no recurrence) and binned tumor stage (early/late)</b>. -->
 
 <b>This object is used only for the exploratory analysis and not for the actual DGEA.</b>
 
 ```{r deseq, echo=TRUE, eval=FALSE}
-dds <- DESeqDataSetFromMatrix(countData = summed_counts,
+dds_null <- DESeqDataSetFromMatrix(countData = summed_counts,
                               colData = coldata,
-                              design = ~Sample.type*Stage*Recurrence)
+                              design = ~1)
 ```
 
 ## Count normalization

@@ -1,0 +1,5 @@
+row_comp,R vs NR,LR vs ER,ER vs ENR,LR vs LNR
+R vs NR,n=140,36 (17 same-sign); row 25.7%; col 2.3%; J=0.021; OC=0.257; SC=47.2%; p.adj= 9.0e-19,74 (73 same-sign); row 52.9%; col 18.9%; J=0.162; OC=0.529; SC=98.6%; p.adj=4.8e-110,53 (51 same-sign); row 37.9%; col 6.4%; J=0.058; OC=0.379; SC=96.2%; p.adj= 5.1e-51
+LR vs ER,36 (17 same-sign); row 2.3%; col 25.7%; J=0.021; OC=0.257; SC=47.2%; p.adj=NA,n=1584,193 (2 same-sign); row 12.2%; col 49.4%; J=0.108; OC=0.494; SC=1.0%; p.adj=1.4e-158,329 (329 same-sign); row 20.8%; col 39.9%; J=0.158; OC=0.399; SC=100.0%; p.adj=3.5e-237
+ER vs ENR,74 (73 same-sign); row 18.9%; col 52.9%; J=0.162; OC=0.529; SC=98.6%; p.adj=NA,193 (2 same-sign); row 49.4%; col 12.2%; J=0.108; OC=0.494; SC=1.0%; p.adj=NA,n=391,28 (7 same-sign); row 7.2%; col 3.4%; J=0.024; OC=0.072; SC=25.0%; p.adj= 4.7e-08
+LR vs LNR,53 (51 same-sign); row 6.4%; col 37.9%; J=0.058; OC=0.379; SC=96.2%; p.adj=NA,329 (329 same-sign); row 39.9%; col 20.8%; J=0.158; OC=0.399; SC=100.0%; p.adj=NA,28 (7 same-sign); row 3.4%; col 7.2%; J=0.024; OC=0.072; SC=25.0%; p.adj=NA,n=825
