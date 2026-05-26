@@ -16,3 +16,5 @@ taxa_bar_chart.png
 # R_Scripts/get_pathfindR_png.R
 R_scripts/archived_DGEA.R
 .positai
+# large HTML files
+*.HTML
