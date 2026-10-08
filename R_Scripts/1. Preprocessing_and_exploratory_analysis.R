@@ -668,6 +668,10 @@ fig
 annotate_figure(fig, left = textGrob(bquote(bold("MDS2")), rot = 90, vjust = 1, gp = gpar(cex = 0.45)))
 dev.off()
 
+# Export summed counts
+write.xlsx(as.data.frame(counts(dds)), "Resources_and_environments/summed_counts.xlsx",
+           rowNames = TRUE)
+
 # Export a session info text file for reproducibility
 writeLines(capture.output(sessionInfo()), 
            paste0("Resources_and_environments/Preprocessing_and_EA_sessionInfo.txt"))
