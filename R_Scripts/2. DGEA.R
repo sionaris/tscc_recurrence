@@ -500,7 +500,7 @@ legend_cols <- c(
   "Down-regulated"            = "royalblue",
   "Up-regulated"              = "red4",
   "|log2FC| < 1"              = "pink",
-  "Not significant / missing" = "grey"
+  "Not significant" = "grey"
 )
 
 # Volcano loop (raw LFCs)
@@ -530,7 +530,7 @@ for (i in 1:length(results_tbls)) {
   names(keyvals.colour)[keyvals.colour == 'royalblue'] <- 'Down-regulated'
   names(keyvals.colour)[keyvals.colour == 'red4'] <- 'Up-regulated'
   names(keyvals.colour)[keyvals.colour == 'pink'] <- '|log2FC| < 1'
-  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant / missing"
+  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant"
   
   res$aes = keyvals.colour
   
@@ -619,7 +619,7 @@ for (i in 1:length(ashr_shrunk_tbls)) {
   names(keyvals.colour)[keyvals.colour == 'royalblue'] <- 'Down-regulated'
   names(keyvals.colour)[keyvals.colour == 'red4'] <- 'Up-regulated'
   names(keyvals.colour)[keyvals.colour == 'pink'] <- '|log2FC| < 1'
-  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant / missing"
+  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant"
   
   res$aes = keyvals.colour
   
