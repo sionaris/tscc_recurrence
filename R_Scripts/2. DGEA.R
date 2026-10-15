@@ -28,6 +28,7 @@ library(grid)
 library(gridExtra)
 library(IHW)
 library(ashr)
+library(patchwork)
 
 # Import environment
 load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
@@ -489,7 +490,21 @@ for (i in 1:length(plot_list_raw)) {
 rm(res_df, res_shrunk_df, mean_norm_counts, common_genes, p1, p2); gc()
 
 # Volcano plots #####
+contrast_nice_names = c(
+  res_tumor_rec_vs_tumor_no_rec             = "Recurrent tumors vs. non-recurrent tumors (overall)",
+  res_late_tumor_rec_vs_early_tumor_rec     = "Late-stage recurrent vs. Early-stage recurrent tumors",
+  res_early_tumor_rec_vs_early_tumor_no_rec = "Early-stage recurrent vs. Early-stage non-recurrent tumors",
+  res_late_tumor_rec_vs_late_tumor_no_rec   = "Late-stage recurrent vs. Late-stage non-recurrent tumors"
+)
+legend_cols <- c(
+  "Down-regulated"            = "royalblue",
+  "Up-regulated"              = "red4",
+  "|log2FC| < 1"              = "pink",
+  "Not significant / missing" = "grey"
+)
+
 # Volcano loop (raw LFCs)
+volcanos_raw = list()
 for (i in 1:length(results_tbls)) {
   # Construct the data frame
   genes = if ("gene" %in% colnames(results_tbls[[i]])) results_tbls[[i]]$gene else rownames(results_tbls[[i]])
@@ -511,48 +526,46 @@ for (i in 1:length(results_tbls)) {
            ifelse(abs(res$log2FoldChange) < 1 & res$padj < 0.05, 'pink',
                   'grey')))
   
-  # keyvals.colour[is.na(keyvals.colour)] <- 'black'
+  keyvals.colour[is.na(keyvals.colour)] <- 'grey'
   names(keyvals.colour)[keyvals.colour == 'royalblue'] <- 'Down-regulated'
   names(keyvals.colour)[keyvals.colour == 'red4'] <- 'Up-regulated'
   names(keyvals.colour)[keyvals.colour == 'pink'] <- '|log2FC| < 1'
-  names(keyvals.colour)[keyvals.colour == 'grey'] <- 'p.adj > 0.05'
+  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant / missing"
   
   res$aes = keyvals.colour
   
-  volcano = EnhancedVolcano(res,
-                            lab = res[, "Gene.Symbol"],
-                            caption = NULL,
-                            x = 'log2FoldChange',
-                            y = 'padj',
-                            pCutoff = 0.05,
-                            FCcutoff = 1,
-                            cutoffLineType = "dashed",
-                            cutoffLineWidth = 0.3,
-                            cutoffLineCol = "black",
-                            colCustom = keyvals.colour,
-                            colAlpha = 0.7,
-                            ylab = bquote(bold(-log[10]("IHW adj. p-value"))),
-                            xlab = bquote(bold("Raw"~log[2]("Fold Change"))),
-                            pointSize = 1,
-                            axisLabSize = 7,
-                            subtitle = NULL,
-                            labSize = 2,
-                            selectLab = res[1:20, "Gene.Symbol"],
-                            legendLabSize = 8,
-                            legendIconSize = 4,
-                            title = paste0("Volcano plot: contrast = ",
-                                           names(results_tbls)[i]),
-                            labFace = "bold",
-                            boxedLabels = TRUE,
-                            drawConnectors = TRUE,
-                            typeConnectors = "closed",
-                            arrowheads = FALSE,
-                            widthConnectors = 0.3,
-                            max.overlaps = Inf) +
+  volcanos_raw[[names(results_tbls)[i]]] = EnhancedVolcano(res,
+                                                           lab = res[, "Gene.Symbol"],
+                                                           caption = NULL,
+                                                           x = 'log2FoldChange',
+                                                           y = 'padj',
+                                                           pCutoff = 0.05,
+                                                           FCcutoff = 1,
+                                                           cutoffLineType = "dashed",
+                                                           cutoffLineWidth = 0.7,
+                                                           cutoffLineCol = "black",
+                                                           colCustom = keyvals.colour,
+                                                           colAlpha = 0.7,
+                                                           ylab = bquote(bold(-log[10]("IHW adj. p-value"))),
+                                                           xlab = bquote(bold("Shrunk"~log[2]("Fold Change"))),
+                                                           pointSize = 3,
+                                                           axisLabSize = 12,
+                                                           subtitle = NULL,
+                                                           labSize = 3.5,
+                                                           selectLab = res[1:20, "Gene.Symbol"],
+                                                           legendIconSize = 6,
+                                                           title = paste0(contrast_nice_names[i]),
+                                                           labFace = "bold",
+                                                           boxedLabels = TRUE,
+                                                           drawConnectors = TRUE,
+                                                           typeConnectors = "closed",
+                                                           arrowheads = FALSE,
+                                                           widthConnectors = 0.3,
+                                                           max.overlaps = Inf) +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major = element_line(linewidth = 0.4),
-          plot.title = element_text(face = "bold", size = 10, hjust = 0.5, vjust = 0.5),
-          axis.title = element_text(face = "bold", size = 8),
+          plot.title = element_text(face = "bold", size = 13, hjust = 0.5, vjust = 0.5),
+          axis.title = element_text(face = "bold", size = 14),
           axis.line = element_line(colour = "black", linewidth = 0.4),
           axis.ticks = element_line(colour = "black", linewidth = 0.4),
           axis.ticks.length = unit(1, units = "mm"),
@@ -563,18 +576,19 @@ for (i in 1:length(results_tbls)) {
           legend.spacing.x = unit(1, units = "mm"),
           legend.background = element_blank(),
           legend.key.size = unit(0.5, units = "mm"),
-          legend.text = element_text(size = 6),
+          legend.text = element_text(size = 10),
           legend.box.background = element_rect(colour = "black"))
   
-  volcano
+  print(volcanos_raw[[names(results_tbls)[i]]])
   ggsave(filename = paste0("Volcano_raw_LFCs_", names(results_tbls)[i], ".png"),
          path = "Results/DGEA/Volcano_plots", 
-         width = 152, height = 142, device = 'png', units = "mm",
+         width = 162, height = 142, device = 'png', units = "mm",
          dpi = 700)
 }
 rm(genes, i, res, keyvals.colour, volcano)
 
 # Volcano loop (ashr-shrunk LFCs)
+volcanos_ashr = list()
 for (i in 1:length(ashr_shrunk_tbls)) {
   # Construct the data frame
   genes = if ("gene" %in% colnames(ashr_shrunk_tbls[[i]])) ashr_shrunk_tbls[[i]]$gene else rownames(ashr_shrunk_tbls[[i]])
@@ -601,15 +615,15 @@ for (i in 1:length(ashr_shrunk_tbls)) {
            ifelse(abs(res$log2FoldChange) < 1 & res$padj < 0.05, 'pink',
                   'grey')))
   
-  # keyvals.colour[is.na(keyvals.colour)] <- 'black'
+  keyvals.colour[is.na(keyvals.colour)] <- 'grey'
   names(keyvals.colour)[keyvals.colour == 'royalblue'] <- 'Down-regulated'
   names(keyvals.colour)[keyvals.colour == 'red4'] <- 'Up-regulated'
   names(keyvals.colour)[keyvals.colour == 'pink'] <- '|log2FC| < 1'
-  names(keyvals.colour)[keyvals.colour == 'grey'] <- 'p.adj > 0.05'
+  names(keyvals.colour)[keyvals.colour == "grey"] <- "Not significant / missing"
   
   res$aes = keyvals.colour
   
-  volcano = EnhancedVolcano(res,
+  volcanos_ashr[[names(ashr_shrunk_tbls)[i]]] = EnhancedVolcano(res,
                             lab = res[, "Gene.Symbol"],
                             caption = NULL,
                             x = 'log2FoldChange',
@@ -617,21 +631,19 @@ for (i in 1:length(ashr_shrunk_tbls)) {
                             pCutoff = 0.05,
                             FCcutoff = 1,
                             cutoffLineType = "dashed",
-                            cutoffLineWidth = 0.3,
+                            cutoffLineWidth = 0.7,
                             cutoffLineCol = "black",
                             colCustom = keyvals.colour,
                             colAlpha = 0.7,
                             ylab = bquote(bold(-log[10]("IHW adj. p-value"))),
                             xlab = bquote(bold("Shrunk"~log[2]("Fold Change"))),
-                            pointSize = 1,
-                            axisLabSize = 7,
+                            pointSize = 3,
+                            axisLabSize = 12,
                             subtitle = NULL,
-                            labSize = 2,
+                            labSize = 3.5,
                             selectLab = res[1:20, "Gene.Symbol"],
-                            legendLabSize = 8,
-                            legendIconSize = 4,
-                            title = paste0("Volcano plot: contrast = ",
-                                           names(ashr_shrunk_tbls)[i]),
+                            legendIconSize = 6,
+                            title = paste0(contrast_nice_names[i]),
                             labFace = "bold",
                             boxedLabels = TRUE,
                             drawConnectors = TRUE,
@@ -641,8 +653,8 @@ for (i in 1:length(ashr_shrunk_tbls)) {
                             max.overlaps = Inf) +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major = element_line(linewidth = 0.4),
-          plot.title = element_text(face = "bold", size = 10, hjust = 0.5, vjust = 0.5),
-          axis.title = element_text(face = "bold", size = 8),
+          plot.title = element_text(face = "bold", size = 13, hjust = 0.5, vjust = 0.5),
+          axis.title = element_text(face = "bold", size = 14),
           axis.line = element_line(colour = "black", linewidth = 0.4),
           axis.ticks = element_line(colour = "black", linewidth = 0.4),
           axis.ticks.length = unit(1, units = "mm"),
@@ -653,16 +665,115 @@ for (i in 1:length(ashr_shrunk_tbls)) {
           legend.spacing.x = unit(1, units = "mm"),
           legend.background = element_blank(),
           legend.key.size = unit(0.5, units = "mm"),
-          legend.text = element_text(size = 6),
+          legend.text = element_text(size = 10),
           legend.box.background = element_rect(colour = "black"))
   
-  volcano
+  print(volcanos_ashr[[names(ashr_shrunk_tbls)[i]]])
   ggsave(filename = paste0("Volcano_ashr_shrunk_LFCs_", names(ashr_shrunk_tbls)[i], ".png"),
          path = "Results/DGEA/Volcano_plots", 
-         width = 152, height = 142, device = 'png', units = "mm",
+         width = 162, height = 142, device = 'png', units = "mm",
          dpi = 700)
 }
-rm(genes, i, res, keyvals.colour, volcano)
+rm(genes, i, res, keyvals.colour)
+
+# Combine with patchwork
+# Standardise the legends across all four plots
+volcanos_raw_fixed <- lapply(volcanos_raw[1:4], function(p) {
+  
+  # Ensure unused categories have visible legend symbols
+  p$layers[[1]]$show.legend <- TRUE
+  
+  p +
+    scale_colour_manual(
+      values = legend_cols,
+      limits = names(legend_cols),
+      breaks = names(legend_cols),
+      drop = FALSE,
+      name = NULL
+    ) +
+    guides(
+      colour = guide_legend(
+        nrow = 1,
+        override.aes = list(size = 7)
+      )
+    )
+})
+
+# Combine into 2x2 grid
+combined_volcano_raw <- wrap_plots(
+  volcanos_raw_fixed,
+  ncol = 2,
+  byrow = TRUE,
+  guides = "collect"
+) +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.text = element_text(size = 14),
+    plot.tag = element_text(face = "bold", size = 20)
+  )
+
+print(combined_volcano_raw)
+
+ggsave(
+  filename = "Volcano_raw_combined.png",
+  plot = combined_volcano_raw,
+  path = "Results/DGEA/Volcano_plots",
+  width = 300,
+  height = 350,
+  units = "mm",
+  dpi = 700
+)
+
+# Standardise the legends across all four plots
+volcanos_ashr_fixed <- lapply(volcanos_ashr[1:4], function(p) {
+  
+  # Ensure unused categories have visible legend symbols
+  p$layers[[1]]$show.legend <- TRUE
+  
+  p +
+    scale_colour_manual(
+      values = legend_cols,
+      limits = names(legend_cols),
+      breaks = names(legend_cols),
+      drop = FALSE,
+      name = NULL
+    ) +
+    guides(
+      colour = guide_legend(
+        nrow = 1,
+        override.aes = list(size = 7)
+      )
+    )
+})
+
+# Combine into 2x2 grid
+combined_volcano_ashr <- wrap_plots(
+  volcanos_ashr_fixed,
+  ncol = 2,
+  byrow = TRUE,
+  guides = "collect"
+) +
+  plot_annotation(tag_levels = "A") &
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.text = element_text(size = 14),
+    plot.tag = element_text(face = "bold", size = 20)
+  )
+
+print(combined_volcano_ashr)
+
+ggsave(
+  filename = "Volcano_ashr_combined.png",
+  plot = combined_volcano_ashr,
+  path = "Results/DGEA/Volcano_plots",
+  width = 300,
+  height = 350,
+  units = "mm",
+  dpi = 700
+)
 
 # Post-DGEA heatmaps #####
 # Number of features for plots
