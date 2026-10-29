@@ -13,7 +13,7 @@ clinchar = read.csv("clinchar.csv", header = TRUE) %>%
 
 # Variables to summarise
 categorical_vars_pre <- c(
-  "GENDER",
+  "SEX",
   "AGE_GROUP",
   "SITE",
   "SMOKING",
@@ -62,7 +62,7 @@ for (v in continuous_vars_pre) {
 # tongue and floor of mouth and are managed as single tongue cancers, so the
 # recorded categories do not represent distinct anatomical groups.
 categorical_vars <- c(
-  "GENDER",
+  "SEX",
   "AGE_GROUP",
   "SMOKING",
   "ALCOHOL",
@@ -861,10 +861,10 @@ table1 <- bind_rows(
   ),
   
   
-  # Gender
+  # Sex
   make_cat_block(
-    "GENDER",
-    "Gender",
+    "SEX",
+    "Sex",
     c("MALE", "FEMALE"),
     c("Male", "Female"),
     block_id = 2
@@ -1427,7 +1427,7 @@ ft <- add_footer_lines(
 ft <- add_footer_lines(
   ft,
   values = paste0(
-    "Pack-years and smoking-onset age are summarised from available ",
+    "Pack-years and smoking-onset age are summarized from available ",
     "observations only. ETR: early-stage tumor with recurrence; ",
     "ETNR: early-stage tumor without recurrence; ",
     "LTR: late-stage tumor with recurrence; ",
