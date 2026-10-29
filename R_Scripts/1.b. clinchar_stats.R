@@ -5,6 +5,7 @@ library(tibble)
 library(tidyr)
 library(officer)
 library(flextable)
+library(openxlsx)
 
 # Import clinical characteristics
 clinchar = read.csv("clinchar.csv", header = TRUE) %>%
@@ -57,10 +58,12 @@ for (v in continuous_vars_pre) {
 
 
 # Tests: setup and run
+# SITE is not tested: per the clinicians, FLOOR and BOTH tumors involve both
+# tongue and floor of mouth and are managed as single tongue cancers, so the
+# recorded categories do not represent distinct anatomical groups.
 categorical_vars <- c(
   "GENDER",
   "AGE_GROUP",
-  "SITE",
   "SMOKING",
   "ALCOHOL",
   "PATHOLOGY_N_STAGE",
@@ -457,6 +460,147 @@ clinical_test_results_bh |>
     BH_significant
   ) |>
   arrange(family, p_adj_BH)
+
+
+# -------------------------------------------------------------------------
+# Export statistical test results as an Excel workbook
+# -------------------------------------------------------------------------
+
+dir.create(
+  "Tables",
+  showWarnings = FALSE,
+  recursive = TRUE
+)
+
+stats_export <- clinical_test_results_bh |>
+  mutate(
+    BH_significant = !is.na(p_adj_BH) & p_adj_BH < 0.05,
+    # Fisher's exact test has no test statistic
+    statistic_type = case_when(
+      test == "Kruskal-Wallis" ~ "H",
+      test == "Wilcoxon rank-sum" ~ "W",
+      TRUE ~ "None (exact test)"
+    ),
+    # Fisher only gives an odds ratio for 2 x 2 tables
+    effect_size_type = case_when(
+      note %in% "Effect size = Fisher odds ratio" ~ "Odds ratio",
+      test == "Fisher's exact test" & !is.na(p_value) ~
+        "None (table larger than 2 x 2)",
+      TRUE ~ "None"
+    ),
+    # Excel cannot display Inf; a zero cell gives an infinite odds ratio
+    note = case_when(
+      is.infinite(effect_size) ~
+        "Odds ratio is infinite because one cell of the 2 x 2 table is zero.",
+      note %in% "Effect size = Fisher odds ratio" ~ NA_character_,
+      TRUE ~ note
+    ),
+    effect_size = if_else(is.finite(effect_size), effect_size, NA_real_)
+  ) |>
+  select(
+    family,
+    comparison,
+    variable,
+    variable_type,
+    test,
+    n,
+    statistic_type,
+    statistic,
+    effect_size_type,
+    effect_size,
+    p_value,
+    p_adj_BH,
+    BH_significant,
+    note
+  ) |>
+  arrange(family, comparison, p_adj_BH, p_value)
+
+# One sheet per BH correction set (family x comparison)
+stats_sheets <- list(
+  "1_Four_group"   = "T1T2R vs T1T2NR vs T3T4R vs T3T4NR",
+  "2_T_stage"      = "T1T2 vs T3T4",
+  "3A_Within_T1T2" = "T1T2R vs T1T2NR",
+  "3B_Within_T3T4" = "T3T4R vs T3T4NR"
+)
+
+stats_notes <- tibble(
+  Item = c(
+    "Cohort",
+    "Categorical variables",
+    "Continuous variables",
+    "Multiple testing",
+    "Family 4",
+    "Effect size",
+    "Missing values",
+    "Not tested",
+    "Sheets"
+  ),
+  Description = c(
+    "Only the 32 tumor samples were tested. Adjacent normal tissues were not included. Missing values were left out for each variable separately.",
+    "Fisher's exact test.",
+    "Kruskal-Wallis test for the four-group comparison and Wilcoxon rank-sum test for two-group comparisons.",
+    "P-values were adjusted with the Benjamini-Hochberg method, separately for each sheet. BH_significant is TRUE when p_adj_BH is below 0.05.",
+    "Recurrence type and time to recurrence were compared between T1T2R and T3T4R tumors. Only recurrent tumors were included.",
+    "Odds ratios are given for 2 x 2 tables only. There is no effect size for larger tables or for continuous variables.",
+    "A dash (–) means the value does not exist for that test. The statistic_type, effect_size_type and note columns explain why.",
+    "Tumor site was not tested. Tumors recorded as FLOOR or BOTH involve both the tongue and the floor of the mouth, and clinicians manage them as tongue cancers.",
+    "All_tests lists every test. The other sheets show the same results split by comparison."
+  )
+)
+
+stats_wb <- createWorkbook()
+
+add_stats_sheet <- function(wb, sheet, dat) {
+  addWorksheet(wb, sheet)
+  writeData(
+    wb,
+    sheet,
+    dat,
+    headerStyle = createStyle(textDecoration = "bold", border = "bottom"),
+    keepNA = TRUE,
+    na.string = "–"
+  )
+  freezePane(wb, sheet, firstRow = TRUE)
+  setColWidths(wb, sheet, cols = seq_along(dat), widths = "auto")
+}
+
+add_stats_sheet(stats_wb, "Notes", stats_notes)
+add_stats_sheet(stats_wb, "All_tests", stats_export)
+
+for (sheet in names(stats_sheets)) {
+  add_stats_sheet(
+    stats_wb,
+    sheet,
+    stats_export |>
+      filter(comparison == stats_sheets[[sheet]], !grepl("^4\\.", family))
+  )
+}
+
+add_stats_sheet(
+  stats_wb,
+  "4_Recurrence",
+  stats_export |>
+    filter(grepl("^4\\.", family))
+)
+
+# Scientific format for p-value columns
+p_cols <- which(names(stats_export) %in% c("p_value", "p_adj_BH"))
+for (sheet in setdiff(names(stats_wb), "Notes")) {
+  addStyle(
+    stats_wb,
+    sheet,
+    createStyle(numFmt = "0.00E+00"),
+    rows = 2:(nrow(stats_export) + 1),
+    cols = p_cols,
+    gridExpand = TRUE
+  )
+}
+
+saveWorkbook(
+  stats_wb,
+  "Tables/Clinicopathological_statistical_tests.xlsx",
+  overwrite = TRUE
+)
 
 ############################################################
 # TABLE 1: CLINICOPATHOLOGICAL CHARACTERISTICS
@@ -1327,7 +1471,8 @@ save_as_docx(
 cat(
   "\nCreated:\n",
   "  Tables/Table1_clinicopathological_characteristics.docx\n",
-  "  Tables/Table1_clinicopathological_characteristics.csv\n"
+  "  Tables/Table1_clinicopathological_characteristics.csv\n",
+  "  Tables/Clinicopathological_statistical_tests.xlsx\n"
 )
 
 # Export a session info text file for reproducibility

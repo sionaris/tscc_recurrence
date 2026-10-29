@@ -15,7 +15,7 @@ This repository contains the analysis code and outputs for a bulk RNA-seq study 
 
 | | |
 |---|---|
-| **Cohort** | 40 patients (32 tumour and 8 normal samples), sequenced as 80 libraries (2 per patient, summed per patient) |
+| **Cohort** | 40 samples (32 tumours and 8 adjacent normal tissues) from 34 patients. Each sample was sequenced on two lanes (read 1 only), and the lane counts were summed per sample |
 | **Analysed set** | 32 tumours: early stage (T1–T2) and late stage (T3–T4), with and without recurrence |
 | **Model** | `DESeq2` Wald test, `~ Stage * Recurrence`, with IHW p-value weighting and `ashr` LFC shrinkage |
 | **Downstream** | DEG overlap statistics, ORA, GSEA and active-subnetwork enrichment (`pathfindR`) |
@@ -41,7 +41,7 @@ This repository contains the analysis code and outputs for a bulk RNA-seq study 
 
 ```mermaid
 flowchart LR
-    A["FASTQ<br/>(80 libraries)"] --> B["nf-core/rnaseq<br/>STAR + Salmon, GRCh38"]
+    A["FASTQ<br/>(40 samples × 2 lanes)"] --> B["nf-core/rnaseq<br/>STAR + Salmon, GRCh38"]
     B --> C["1 · Preprocessing &<br/>exploratory analysis"]
     K["clinchar.csv"] --> D["1b · Clinical<br/>characteristics (Table 1)"]
     C --> E["2 · Differential<br/>expression (DESeq2)"]
@@ -53,7 +53,7 @@ flowchart LR
 | Step | Script | What it does |
 |---|---|---|
 | 0 | [`nextflow/nf_job.sh`](nextflow/nf_job.sh) | SLURM array job running `nf-core/rnaseq` per sample (Ensembl GRCh38.112) |
-| 1 | [`1. Preprocessing_and_exploratory_analysis.R`](R_Scripts/1.%20Preprocessing_and_exploratory_analysis.R) | `tximport` of Salmon quantifications, filtering, summing per-patient libraries, normalisation, VST/rlog, distance heatmaps, PCA / GLM-PCA / MDS |
+| 1 | [`1. Preprocessing_and_exploratory_analysis.R`](R_Scripts/1.%20Preprocessing_and_exploratory_analysis.R) | `tximport` of Salmon quantifications, filtering, summing the two lanes of each sample, normalisation, VST/rlog, distance heatmaps, PCA / GLM-PCA / MDS |
 | 1b | [`1.b. clinchar_stats.R`](R_Scripts/1.b.%20clinchar_stats.R) | Group comparisons of clinicopathological variables (Fisher, Kruskal–Wallis, Wilcoxon; BH-adjusted), exported as Table 1 |
 | 2 | [`2. DGEA.R`](R_Scripts/2.%20DGEA.R) | `DESeq2` interaction model on tumours, IHW diagnostics, `ashr` shrinkage, MA / volcano plots, DEG heatmaps |
 | 2b | [`2.b. DGEA_overlaps.R`](R_Scripts/2.b.%20DGEA_overlaps.R) | Pairwise DEG overlap between contrasts: Fisher tests, Jaccard / signed Jaccard, sign concordance, recovery; multi-panel figure |
@@ -71,7 +71,7 @@ oscc_recurrence/
 ├── Resources_and_environments/   # Inputs and saved R objects
 │   ├── samplesheet.csv           #   nf-core sample sheet
 │   ├── Pheno.xlsx                #   sample phenotype data
-│   ├── summed_counts.xlsx        #   per-patient summed count matrix
+│   ├── summed_counts.xlsx        #   per-sample count matrix (lanes summed)
 │   ├── final_dds.rds             #   final DESeq2 object
 │   └── *_sessionInfo.txt         #   package versions for each step
 ├── Results/
