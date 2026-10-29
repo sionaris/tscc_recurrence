@@ -5,13 +5,12 @@
 #SBATCH --ntasks=1               # 1 task per node
 #SBATCH --cpus-per-task=12       # 12 CPU per task
 #SBATCH --mem=100G               # 100 GB memory for the node
-#SBATCH --job-name=oscc_rnaseq   # Job name
+#SBATCH --job-name=tscc_rnaseq   # Job name
 #SBATCH --output=logs/%x_%A_%a.out # Standard output
 #SBATCH --error=logs/%x_%A_%a.err  # Standard error
 #SBATCH --array=0-79             # Array jobs to process batches (80 batches to cover 80 samples)
 
-cd $SCRATCH
-cd OSCC_2024
+cd path/to/project
 
 # Load required modules
 module load gcc/13.2.0-iqpfkya openjdk/11.0.20 samtools/1.19.2 apptainer
@@ -33,12 +32,12 @@ echo "sample,fastq_1,strandedness" > $TEMP_CSV
 sed -n "${BATCH_START},${BATCH_END}p" samplesheet.csv >> $TEMP_CSV
 
 # Set apptainer variables
-APPTAINER_CACHEDIR=$SCRATCH/OSCC_2024
-NXF_APPTAINER_CACHEDIR=$SCRATCH/OSCC_2024
+APPTAINER_CACHEDIR=path/to/apptainer_cache
+NXF_APPTAINER_CACHEDIR=path/to/apptainer_cache
 NXF_APPTAINER_HOME_MOUNT=true
 
 # Run Nextflow pipeline on the current batch using the temporary CSV file
-$SCRATCH/OSCC_2024/nextflow run \
+path/to/nextflow run \
     nf-core/rnaseq \
     --input $TEMP_CSV \
     --outdir NF-processed_samples/batch_${SLURM_ARRAY_TASK_ID} \

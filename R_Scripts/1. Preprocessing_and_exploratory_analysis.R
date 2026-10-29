@@ -265,7 +265,7 @@ create_density_plot_color <- function(matrix) {
 # Density plots/curves for our data
 create_density_curve(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves.png",
+ggsave(filename = "TSCC_filtered_read_counts_density_curves.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -278,7 +278,7 @@ dev.off()
 create_density_curve(counts(dds)) +
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves_xlim30.png",
+ggsave(filename = "TSCC_filtered_read_counts_density_curves_xlim30.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -287,7 +287,7 @@ dev.off()
 # Color density plots for counts
 create_density_plot_color(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities.png",
+ggsave(filename = "TSCC_filtered_read_counts_color_densities.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -297,7 +297,7 @@ dev.off()
 create_density_plot_color(counts(dds))+
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities_xlim30.png",
+ggsave(filename = "TSCC_filtered_read_counts_color_densities_xlim30.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -308,7 +308,7 @@ dev.off()
 # Firstly, transform the normalized counts with a data-driven pseudocount
 # https://www.biorxiv.org/content/10.1101/404962v1.full -> Process description
 
-# We need a grouping for the OSCC samples. We are going to go for 
+# We need a grouping for the TSCC samples. We are going to go for 
 # Recurrence vs No recurrence
 rec_samples = Pheno$Patient.ID[Pheno$Recurrence == "Recurrence"]
 norec_samples = Pheno$Patient.ID[Pheno$Recurrence == "No recurrence"]
@@ -355,7 +355,7 @@ rm(rec_samples, norec_samples, sample_conditions, normalized_counts, dds_null,
 
 create_density_curve(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_density_curves.png",
+ggsave(filename = "TSCC_filtered_log2normcounts_density_curves.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -364,7 +364,7 @@ dev.off()
 # Color density plots for counts
 create_density_plot_color(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_color_densities.png",
+ggsave(filename = "TSCC_filtered_log2normcounts_color_densities.png",
        path = "Results/Exploratory analysis",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)

@@ -57,7 +57,7 @@ dev.off()
 
 create_density_curve(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_density_curves.png",
+ggsave(filename = "TSCC_filtered_log2normcounts_density_curves.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -65,7 +65,7 @@ dev.off()
 
 create_density_plot_color(log2.norm.counts.plus1) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_log2normcounts_color_densities.png",
+ggsave(filename = "TSCC_filtered_log2normcounts_color_densities.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -73,7 +73,7 @@ dev.off()
 
 create_density_curve(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves.png",
+ggsave(filename = "TSCC_filtered_read_counts_density_curves.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -82,7 +82,7 @@ dev.off()
 create_density_curve(counts(dds)) +
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_density_curves_xlim30.png",
+ggsave(filename = "TSCC_filtered_read_counts_density_curves_xlim30.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -90,7 +90,7 @@ dev.off()
 
 create_density_plot_color(counts(dds)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities.png",
+ggsave(filename = "TSCC_filtered_read_counts_color_densities.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)
@@ -99,7 +99,7 @@ dev.off()
 create_density_plot_color(counts(dds))+
   scale_x_continuous(limits = c(-1, 30), breaks = seq(0, 30, 10)) +
   theme(plot.title = element_text(face = "bold"))
-ggsave(filename = "OSCC_filtered_read_counts_color_densities_xlim30.png",
+ggsave(filename = "TSCC_filtered_read_counts_color_densities_xlim30.png",
        path = "Reports/png_exploratory",
        width = 1920, height = 1080, device = 'png', units = "px",
        dpi = 150)

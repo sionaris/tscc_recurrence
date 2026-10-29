@@ -1,9 +1,9 @@
 ---
-title: "OSCC RNA-seq analysis"
+title: "TSCC RNA-seq analysis"
 author: "Aris Sionakidis"
 date: "`r Sys.Date()`"
 abstract: >
-  A presentation of our current work in OSCC RNA-seq analysis. There are four main sections: Raw data quality control, Exploratory analysis, Differential Gene Expression Analysis (DGEA) and Pathway analysis.
+  A presentation of our current work in TSCC RNA-seq analysis. There are four main sections: Raw data quality control, Exploratory analysis, Differential Gene Expression Analysis (DGEA) and Pathway analysis.
 output: 
   html_document:
     fig.width : 12
@@ -380,11 +380,11 @@ In order to normalize the raw counts, we use <em>DESeq2</em>'s approach with ``e
 ## Count density plots
 The density curves of the raw counts of each sample (each sample's density curve is drawn with a different color) is shown on the figure below (x-axis is capped at 30). These plots illustrate the frequencies of different count values in samples. We generally see low counts dominating the distributions, as expected in RNA-seq data.
 
-![](`r paste0(getwd(),"/png_exploratory/OSCC_filtered_read_counts_color_densities_xlim30.png")`)
+![](`r paste0(getwd(),"/png_exploratory/TSCC_filtered_read_counts_color_densities_xlim30.png")`)
 
 The corresponding curves for the $\log_2$-normalized data are shown below.
 
-![](`r paste0(getwd(),"/png_exploratory/OSCC_filtered_log2normcounts_color_densities.png")`)
+![](`r paste0(getwd(),"/png_exploratory/TSCC_filtered_log2normcounts_color_densities.png")`)
 
 The two plots show that regardless of transformation the samples have similar distributions and no apparent extreme outliers exist.
 
@@ -795,7 +795,7 @@ Below there are 8 heatmaps (4 pairs), one pair for each comparison, where the <b
 
 # Pathways
 ## Over-representation analysis (ORA)
-Over-representation analysis is based only on the overlaps of the user-provided sets of genes with the known biological sets of genes in a knowledge base like <b>Gene Ontology (GO)</b> or <b>KEGG</b>. They <b>do NOT</b> take the ``logFC``'s into account. Nevertheless, we carry out this analysis using <em>clusterProfiler</em> for the following available gene set resources: <b>GO, KEGG, WikiPathways, Reactome, Disease Ontology (DO), Network of Cancer Gene (NCG) and Disease Gene Network (DGN)</b>. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/oscc_seq_rec).
+Over-representation analysis is based only on the overlaps of the user-provided sets of genes with the known biological sets of genes in a knowledge base like <b>Gene Ontology (GO)</b> or <b>KEGG</b>. They <b>do NOT</b> take the ``logFC``'s into account. Nevertheless, we carry out this analysis using <em>clusterProfiler</em> for the following available gene set resources: <b>GO, KEGG, WikiPathways, Reactome, Disease Ontology (DO), Network of Cancer Gene (NCG) and Disease Gene Network (DGN)</b>. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/tscc_recurrence).
 
 <b>In the following subsections, if you don't see any result, then there are NO significant results.</b>
 
@@ -820,7 +820,7 @@ ora_loop(ora_pathways = pathways, comp = "ashr_LTR_vs_LTNR")
 ```
 
 ## Gene Set Enrichment Analysis (GSEA)
-Gene Set Enrichment Analysis leverages log fold changes to rank genes by expression variation (<b>in all genes; NOT just the significant ones</b>), enabling the detection of coordinated up- or down-regulation in predefined gene sets and providing more nuanced insights than over-representation analysis, which only assesses the enrichment of selected genes without considering their expression levels. We carry out this analysis using <em>clusterProfiler</em> for the following available gene set resources: <b>GO, KEGG, WikiPathways, Reactome, Disease Ontology (DO), Network of Cancer Gene (NCG) and Disease Gene Network (DGN)</b>; same as ORA. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/oscc_seq_rec).
+Gene Set Enrichment Analysis leverages log fold changes to rank genes by expression variation (<b>in all genes; NOT just the significant ones</b>), enabling the detection of coordinated up- or down-regulation in predefined gene sets and providing more nuanced insights than over-representation analysis, which only assesses the enrichment of selected genes without considering their expression levels. We carry out this analysis using <em>clusterProfiler</em> for the following available gene set resources: <b>GO, KEGG, WikiPathways, Reactome, Disease Ontology (DO), Network of Cancer Gene (NCG) and Disease Gene Network (DGN)</b>; same as ORA. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/tscc_recurrence).
 
 <b>In the following subsections, if you don't see any result, then there are NO significant results.</b>
 
@@ -845,7 +845,7 @@ gsea_loop(gsea_pathways = pathways, comp = "ashr_LTR_vs_LTNR")
 ```
 
 ## Active Subnetwork Enrichment
-<em>pathfindR</em> maps each gene’s statistical significance (from a comparison of interest) onto a <b>protein–protein interaction (PIN) network</b> and then searches for "active subnetworks", which are clusters of closely interacting, significantly altered genes. Each subnetwork is tested for pathway enrichment, and the results are aggregated to reveal biologically relevant pathways that are highly supported by <b>both gene-level evidence and interaction data</b>. This approach goes beyond simple gene-count–based methods like Over-Representation Analysis (ORA) by incorporating interaction patterns rather than just whether a gene is in a pathway, and it differs from GSEA by focusing on actual network connectivity rather than only rank-based enrichment. Consequently, pathfindR can highlight disease-associated pathways that may remain undetected when ignoring the crucial contextual relationships among genes. We carry out this analysis using for the following available gene set resources: <b>GO, KEGG, Reactome, BioCarta</b> and the <b>Biogrid PIN</b>. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/oscc_seq_rec).
+<em>pathfindR</em> maps each gene’s statistical significance (from a comparison of interest) onto a <b>protein–protein interaction (PIN) network</b> and then searches for "active subnetworks", which are clusters of closely interacting, significantly altered genes. Each subnetwork is tested for pathway enrichment, and the results are aggregated to reveal biologically relevant pathways that are highly supported by <b>both gene-level evidence and interaction data</b>. This approach goes beyond simple gene-count–based methods like Over-Representation Analysis (ORA) by incorporating interaction patterns rather than just whether a gene is in a pathway, and it differs from GSEA by focusing on actual network connectivity rather than only rank-based enrichment. Consequently, pathfindR can highlight disease-associated pathways that may remain undetected when ignoring the crucial contextual relationships among genes. We carry out this analysis using for the following available gene set resources: <b>GO, KEGG, Reactome, BioCarta</b> and the <b>Biogrid PIN</b>. The results are stored in the ``Results/Pathways`` folder, under each comparison's directory in the [GitHub repo](https://github.com/sionaris/tscc_recurrence).
 
 <b>In the following subsections, if you don't see any result, then there are NO significant results.</b> Pathways in pathfindR <b>can be clustered to create a representative pathway which is summarizing findings in multiple similar pathways</b>. These can be seen in the corresponding "representative" tables.
 

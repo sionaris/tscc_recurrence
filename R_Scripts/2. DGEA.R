@@ -31,7 +31,33 @@ library(ashr)
 library(patchwork)
 
 # Import environment
-load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
+# Script 1 needs the nf-core outputs, which are not shared. If its saved
+# environment is not available, rebuild the DESeq2 object from the shared
+# summed count matrix and phenotype table, exactly as script 1 does.
+if (file.exists("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")) {
+  load("Resources_and_environments/Preprocessing_and_exploratory_analysis.RData")
+} else {
+  Pheno = read.xlsx("Resources_and_environments/Pheno.xlsx")
+  summed_counts = as.matrix(read.xlsx("Resources_and_environments/summed_counts.xlsx",
+                                      rowNames = TRUE))
+  coldata = Pheno[match(colnames(summed_counts), Pheno$Patient.ID), ]
+  rownames(coldata) = coldata$Patient.ID
+  coldata$Stage = factor(coldata$Stage, levels = c("Early", "Late"))
+  coldata$Sample.type = factor(coldata$Sample.type, levels = c("Normal", "Tumor"))
+  coldata$Recurrence = factor(coldata$Recurrence, levels = c("No recurrence", "Recurrence"))
+  dds <- DESeqDataSetFromMatrix(countData = summed_counts,
+                                colData = coldata,
+                                design = ~Sample.type*Stage*Recurrence)
+  dds = estimateSizeFactors(dds)
+  # Annotation colors (as in script 1)
+  ann_colors = list(
+    Recurrence = c(`No recurrence` = "dodgerblue4", Recurrence = "deeppink4"),
+    Sample.type = c(Tumor = "purple4", Normal = "orange"),
+    Stage = c(Early = carto_pal(n = 7, "Emrld")[4],
+              Late = carto_pal(n = 7, "Burg")[4])
+  )
+  rm(summed_counts, coldata)
+}
 
 # Differential Expression #####
 # Tumor-only model for contrasts of interest
@@ -826,7 +852,7 @@ columns_of_interest = c("Recurrence", "Stage", "Recurrence", "Recurrence")
 # Firstly, transform the normalized counts with a data-driven pseudocount
 # https://www.biorxiv.org/content/10.1101/404962v1.full -> Process description
 
-# We need a grouping for the OSCC samples. We are going to go for 
+# We need a grouping for the TSCC samples. We are going to go for 
 # Recurrence vs No recurrence
 rec_samples = pheno_filt$Patient.ID[pheno_filt$Recurrence == "Recurrence"]
 norec_samples = pheno_filt$Patient.ID[pheno_filt$Recurrence == "No recurrence"]

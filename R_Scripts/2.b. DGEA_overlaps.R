@@ -1001,7 +1001,7 @@ cat(" - ", file.path(out_dir, paste0(figure_prefix, "_pairwise_metrics_unique_pa
 cat(" - ", file.path(out_dir, paste0(figure_prefix, "_formatted_matrix_for_Word.csv")), "\n", sep = "")
 
 
-save.image("C:/Users/as3582/OneDrive - University of Cambridge/Desktop/GitHub/oscc_seq_rec/Resources_and_environments/DGEA_post.RData")
+save.image("Resources_and_environments/DGEA_post.RData")
 
 # Export session info as txt
 writeLines(capture.output(sessionInfo()), 
