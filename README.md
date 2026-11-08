@@ -104,6 +104,6 @@ Raw sequencing data are not publicly available. The analysis can be reproduced f
    - `2. DGEA.R`: builds the DESeq2 object from `summed_counts.xlsx` and `Pheno.xlsx`, then runs the differential expression analysis. This gives the same model fit as `final_dds.rds`.
    - `2.b. DGEA_overlaps.R`: DEG overlaps. It loads the environment saved by script 2.
    - `3. Pathway_analysis.R`: enrichment analyses. KEGG-based steps need an internet connection.
-3. Script 1 starts from the nf-core/rnaseq outputs and cannot be rerun without the raw data. Its outputs (the count matrix and the exploratory figures) are included.
+3. Script 1 starts from the nf-core/rnaseq outputs and cannot be rerun from the beginning without the raw data. Its outputs (the count matrix and the exploratory figures) are included. `summed_counts.xlsx` contains the count matrix that is used for the `DESeq2 dds` object creation and can therefore be imported to reproduce steps from then onwards in this script.
 
 Package versions for each step are recorded in `Resources_and_environments/*_sessionInfo.txt`. Intermediate `.RData` environments are not tracked; each script recreates the ones the next script needs.
